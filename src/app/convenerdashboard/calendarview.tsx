@@ -78,7 +78,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ proposals }) => {
     const [loading] = useState(false);
     const [selectedEvent, setSelectedEvent] = useState<Proposal | null>(null);
 
-    useState(() => {
+    React.useEffect(() => {
         setEventProposals(proposals);
     }, [proposals]);
 

@@ -19,11 +19,11 @@ const Page = () => {
         if (token) {
           setIsAuthenticated(true);
         } else {
-          router.push('/login'); // Redirect to login page
+          router.push('/'); // Redirect to login page
         }
       } catch (error) {
         console.error("Authentication check failed:", error);
-        // Handle authentication failure (e.g., redirect to login)
+       
         router.push('/login');
       } finally {
         setIsLoading(false);
@@ -34,11 +34,11 @@ const Page = () => {
   }, [router]);
 
   if (isLoading) {
-    return <div>Loading...</div>; // Or a loading spinner
+    return <div></div>; // Or a loading spinner
   }
 
   if (!isAuthenticated) {
-    return null; // Or a "Redirecting..." message if router.push doesn't immediately update
+    return null; 
   }
 
   return (
