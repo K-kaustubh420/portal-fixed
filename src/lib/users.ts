@@ -9,14 +9,11 @@ export interface User {
     dept_id: number ; 
   
 }
-
+    
 const AUTH_TOKEN_KEY = 'authToken';
 const USER_DATA_KEY = 'userData';
 
-/**
- * Saves only the authentication token to localStorage.
- * @param token - The authentication token string.
- */
+
 export const saveAuthToken = (token: string): void => {
     if (typeof window === 'undefined' || !window.localStorage) {
         console.warn("localStorage is not available. Cannot save auth token.");

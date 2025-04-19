@@ -145,6 +145,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ proposals }) => {
                 <Popup
                     selectedProposal={selectedEvent}
                     closePopup={closePopup}
+                    onProposalUpdated={() => { }}
                 />
             )}
         </div>
