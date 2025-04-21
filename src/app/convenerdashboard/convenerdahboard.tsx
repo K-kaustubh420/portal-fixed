@@ -412,8 +412,8 @@ const ConvenerDashboard: React.FC = () => {
     };
 
     return (
-        <div className="convener-dashboard p-4 md:p-6 space-y-6 bg-base-200 min-h-screen">
-            <h1 className="text-2xl md:text-3xl font-bold text-base-content mb-4">
+        <div className="convener-dashboard p-4 md:p-6 space-y-6 bg-white text-black min-h-screen">
+            <h1 className="text-2xl md:text-3xl font-bold text-base-content mb-4 hidden">
                 {user?.role ? `${user.role.charAt(0).toUpperCase() + user.role.slice(1)} Dashboard` : 'Dashboard'}
              </h1>
 
@@ -471,7 +471,7 @@ const ConvenerDashboard: React.FC = () => {
              {/* --- END UPDATED GRID LAYOUT --- */}
 
 
-            {/* Calendar View (Full Width below main grid or inside grid) */}
+           
              <div className="mt-6">
                  <CalendarView proposals={validProposals.map(p => ({
                     // Map to what CalendarView expects

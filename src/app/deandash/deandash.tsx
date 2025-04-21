@@ -368,8 +368,8 @@ const DeanDashboard: React.FC = () => {
     const proposalForPopup: UnifiedProposal | null = selectedProposalData ? mapDetailResponseToProposal(selectedProposalData) : null;
 
     return (
-        <div className="dean-dashboard p-4 md:p-6 space-y-6 bg-base-200 min-h-screen">
-            <h1 className="text-2xl md:text-3xl font-bold text-base-content mb-4">
+        <div className="dean-dashboard p-4 md:p-6 space-y-6 bg-white text-black min-h-screen">
+            <h1 className="text-2xl md:text-3xl font-bold text-slate-800 mb-4">
                 Dean Dashboard
              </h1>
 

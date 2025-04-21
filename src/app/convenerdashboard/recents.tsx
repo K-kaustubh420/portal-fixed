@@ -38,7 +38,7 @@ const Recents: React.FC<RecentsProps> = ({ recentAppliedProposals, handleProposa
 
 
     return (
-        <div className="card shadow-md rounded-lg bg-white">
+        <div className="card shadow-md rounded-lg bg-white  ">
             <div className="card-body">
                 <h2 className="card-title text-lg font-bold text-gray-700 mb-4">Recent Activity</h2>
                 <div className="space-y-4"> {/* Increased spacing */}

@@ -9,8 +9,6 @@ import Stats from './stats';       // Adjust path if needed
 import Popup from './Popup';         // Adjust path - CHECK FILENAME CASING
 import Recents from './recents';     // Adjust path if needed
 import CalendarView from './CalnderView'; // Adjust path & NAME (or CalnderView)
-
-// Import functions from your user lib
 import { loadAuthData, clearAuthData, User } from '@/lib/users'; // Adjust path if needed
 
 // --- Interfaces ---
@@ -154,7 +152,7 @@ interface HODProposalListResponseObject {
 }
 
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://pmspreview-htfbhkdnffcpf5dz.centralindia-01.azurewebsites.net";
+const API_BASE_URL ="https://pmspreview-htfbhkdnffcpf5dz.centralindia-01.azurewebsites.net";
 
 const HODDashboard: React.FC = () => {
     const [proposals, setProposals] = useState<HODProposalListItem[]>([]);
@@ -418,8 +416,8 @@ const HODDashboard: React.FC = () => {
 
     // --- JSX Return ---
     return (
-        <div className="hod-dashboard p-4 md:p-6 space-y-6 bg-base-200 min-h-screen">
-            <h1 className="text-2xl md:text-3xl font-bold text-base-content mb-4">HOD Dashboard</h1>
+        <div className="hod-dashboard p-4 md:p-6 space-y-6  min-h-screen bg-white text-black">
+            <h1 className="text-2xl md:text-3xl font-bold text-base-600 mb-4 text">HOD Dashboard</h1>
             <Stats {...{totalProposalsCount, approvedProposalsCount, pendingProposalsCount, rejectedProposalsCount, reviewProposalsCount}} />
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                  <div className="lg:col-span-1 space-y-6">

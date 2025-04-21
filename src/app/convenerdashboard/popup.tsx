@@ -176,7 +176,7 @@ const Popup: React.FC<PopupProps> = ({ selectedProposal, closePopup, onProposalU
 
     return (
         <motion.div
-            className="fixed inset-0 z-50 shadow-md shadow-blue-200 flex items-center justify-center bg-gray-800 bg-opacity-75" // Darker overlay
+            className="fixed inset-0 z-50 shadow-md shadow-blue-200 flex items-center justify-center bg-opacity-75" // Darker overlay
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}

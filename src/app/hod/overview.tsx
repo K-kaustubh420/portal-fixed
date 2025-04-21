@@ -64,14 +64,14 @@ const ProposalOverviewTable: React.FC<ProposalOverviewTableProps> = ({ eventProp
     }
 
     return (
-        <div className="card shadow-md rounded-lg bg-base-100"> {/* Use base-100 for theme compatibility */}
+        <div className="card shadow-md rounded-lg bg-inherit "> {/* Use base-100 for theme compatibility */}
             <div className="card-body p-4 sm:p-6"> {/* Adjust padding */}
-                <h2 className="card-title text-base sm:text-lg font-bold text-base-content mb-4">Proposals Overview</h2>
+                <h2 className="card-title text-shadow-base-200 sm:text-lg font-bold mb-4">Proposals Overview</h2>
                 <div className="overflow-x-auto">
                     {/* Use DaisyUI table classes */}
                     <table className="table table-sm sm:table-md w-full">
                       
-                        <thead className="text-xs text-base-content/70 uppercase bg-base-200"> 
+                        <thead className="text-xs text-base-200 uppercase bg-slate-100 "> 
                             <tr>
                                 <th>Convener / Event</th>
                                 <th>Category</th>
@@ -88,14 +88,14 @@ const ProposalOverviewTable: React.FC<ProposalOverviewTableProps> = ({ eventProp
                                             <div className="flex items-center gap-3">
                                                 <div className="avatar placeholder">
                                                      {/* Use theme colors */}
-                                                    <div className="bg-neutral text-neutral-content rounded-full w-10 h-10 sm:w-12 sm:h-12 text-sm sm:text-base">
-                                                        <span>{getInitials(proposal.convenerName)}</span>
+                                                    <div className="bg-neutral text-neutral-content rounded-full w-10 h-10 sm:w-12 sm:h-12 text-sm sm:text-lg text-center items-center justify-center">
+                                                        <span>{'U'}</span>
                                                     </div>
                                                 </div>
                                                 <div>
-                                                    {/* Use theme text color */}
-                                                    <div className="font-bold text-base-content text-sm sm:text-base">{proposal.convenerName || 'N/A'}</div>
-                                                    <div className="text-xs sm:text-sm text-base-content/80">{proposal.title || 'N/A'}</div>
+                                                   
+                                                    <div className="font-bold text-gray-300 text-sm sm:text-base">{proposal.convenerName || 'N/A'}</div>
+                                                    <div className="text-xs sm:text-sm text-slate-500">{proposal.title || 'N/A'}</div>
                                                 </div>
                                             </div>
                                         </td>

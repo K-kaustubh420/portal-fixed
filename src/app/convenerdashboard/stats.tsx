@@ -146,30 +146,30 @@ const Stats: React.FC<StatsProps> = ({
                 <div className="card stat shadow-md rounded-lg border-t-4 border-blue-500 bg-white">
                     <div className="stat-figure text-blue-500"><ListChecks className="h-6 w-6" /></div>
                     <div className="stat-value">{totalProposalsCount.toLocaleString()}</div>
-                    <div className="stat-title">Total Applied</div>
+                    <div className="stat-title text-gray-500 ">Total Applied</div>
                 </div>
 
                 <div className="card stat shadow-md rounded-lg border-t-4 border-green-500 bg-white">
                     <div className="stat-figure text-green-500"><CheckCircle className="h-6 w-6" /></div>
                     <div className="stat-value">{approvedProposalsCount.toLocaleString()}</div>
-                    <div className="stat-title">Approved</div>
+                    <div className="stat-title text-gray-500">Approved</div>
                 </div>
 
                 <div className="card stat shadow-md rounded-lg border-t-4 border-red-500 bg-white">
                     <div className="stat-figure text-red-500"><XCircle className="h-6 w-6" /></div>
                     <div className="stat-value">{rejectedProposalsCount.toLocaleString()}</div>
-                    <div className="stat-title">Rejected</div>
+                    <div className="stat-title text-gray-500">Rejected</div>
                 </div>
 
                 <div className="card stat shadow-md rounded-lg border-t-4 border-yellow-500 bg-white">
                     <div className="stat-figure text-yellow-500"><Clock className="h-6 w-6" /></div>
                     <div className="stat-value">{pendingProposalsCount.toLocaleString()}</div>
-                    <div className="stat-title">Pending</div>
+                    <div className="stat-title text-gray-500">Pending</div>
                 </div>
                 <div className="card stat shadow-md rounded-lg border-t-4 border-info bg-white">
                     <div className="stat-figure text-info"><Clock className="h-6 w-6" /></div>
                     <div className="stat-value">{reviewProposalsCount.toLocaleString()}</div>
-                    <div className="stat-title">Review</div>
+                    <div className="stat-title text-gray-500">Review</div>
                 </div>
             </div>
 
