@@ -6,7 +6,6 @@ import { Trash2, PlusCircle, Info, Users, UserCheck, BedDouble,  DollarSign, Fil
 import { useSearchParams } from 'next/navigation';
 import { loadAuthData, User } from '@/lib/users';
 
-// Interfaces (Keep these as they are)
 interface DetailedBudgetRow {
     localId: string;
     category: string;
@@ -71,10 +70,9 @@ const SectionHeader: React.FC<{ title: string; icon?: React.ReactNode; required?
     </div>
 );
 
-// --- Main Component ---
+
 export default function EventProposalForm() {
-    // Remove useAuth hook
-    // const { user } = useAuth();
+   ;
     const searchParams = useSearchParams();
 
     // --- State for User and Token loaded from localStorage ---
