@@ -8,6 +8,7 @@ import Popup from './popup';
 import Recents from './recents';
 import CalendarView from './calendarview';
 import { useAuth } from '@/context/AuthContext';
+import { loadAuthData } from '@/lib/users';
 
 // Shared Interfaces
 export interface Item {
@@ -47,11 +48,12 @@ export interface Message {
 }
 
 export interface User {
-    id: number;
     name: string;
+    department: number | string;
     email: string;
-    designation?: string;
     role: string;
+    designation: string;
+    dept_id: number;
 }
 
 export interface Proposal {
@@ -169,31 +171,53 @@ const ChairDashboard: React.FC = () => {
     const [isPopupLoading, setIsPopupLoading] = useState(false);
     const { token, user, logout } = useAuth();
 
+    // Debug Authentication and Stats
+    useEffect(() => {
+        console.log('ChairDashboard: useAuth output:', { token, user, userRole: user?.role });
+        console.log('ChairDashboard: proposals state:', proposals);
+        console.log('ChairDashboard: stats computed:', calculateStats(proposals));
+        if (typeof window !== 'undefined' && window.localStorage) {
+            console.log('ChairDashboard: localStorage contents:', {
+                authToken: localStorage.getItem('authToken'),
+                userData: localStorage.getItem('userData'),
+                allKeys: Object.keys(localStorage)
+            });
+            const authData = loadAuthData();
+            console.log('ChairDashboard: loadAuthData result:', authData);
+        }
+    }, [token, user, proposals]);
+
     // Fetch Proposals
     const fetchProposals = useCallback(async () => {
         if (!token || !user || user.role !== 'chair') {
             setError(user ? "Access denied. User is not a Chairperson." : "User not authenticated.");
             setLoading(false);
+            console.log('ChairDashboard: fetchProposals skipped due to invalid auth:', { tokenExists: !!token, userRole: user?.role });
             return;
         }
         setLoading(true);
         setError(null);
         const proposalEndpoint = `${API_BASE_URL}/api/chair/proposals`;
         try {
+            console.log('ChairDashboard: Fetching proposals with token:', token.slice(0, 10) + '...');
             const response = await axios.get<ProposalListItem[]>(proposalEndpoint, {
                 headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
             });
             setProposals(response.data);
+            console.log('ChairDashboard: Proposals fetched:', response.data.length);
         } catch (err: any) {
-            console.error("Error fetching Chair proposals:", err);
+            console.error("ChairDashboard: Error fetching Chair proposals:", err);
             const axiosError = err as AxiosError;
             if (axiosError.response?.status === 401) {
                 setError("Authentication failed.");
                 logout();
+                console.log('ChairDashboard: 401 error, logging out');
             } else if (axiosError.response?.status === 403) {
                 setError("Forbidden.");
+                console.log('ChairDashboard: 403 Forbidden');
             } else {
                 setError((axiosError.response?.data as any)?.message || axiosError.message || 'Failed to fetch proposals');
+                console.log('ChairDashboard: Fetch error:', axiosError.message);
             }
             setProposals([]);
         } finally {
@@ -207,35 +231,46 @@ const ChairDashboard: React.FC = () => {
         } else if (user) {
             setError("Access denied. This dashboard is for Chairpersons only.");
             setLoading(false);
+            console.log('ChairDashboard: Access denied, user role:', user?.role);
+        } else {
+            setError("User not authenticated.");
+            setLoading(false);
+            console.log('ChairDashboard: No user authenticated');
         }
     }, [fetchProposals, user]);
 
     // Fetch Proposal Detail
     const fetchProposalDetail = useCallback(async (proposalId: number | string) => {
         if (!token || !user || user.role !== 'chair') {
-            console.error("fetchProposalDetail cancelled: Missing token, user, or incorrect role.");
+            console.error("ChairDashboard: fetchProposalDetail cancelled: Missing token, user, or incorrect role.", { tokenExists: !!token, userRole: user?.role });
             return;
         }
         setIsPopupLoading(true);
         setError(null);
         const detailEndpoint = `${API_BASE_URL}/api/chair/proposals/${proposalId}`;
         try {
+            console.log('ChairDashboard: Fetching proposal detail:', proposalId);
             const response = await axios.get<DetailedProposalResponse>(detailEndpoint, {
                 headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
             });
             setSelectedProposalData(response.data);
+            console.log('ChairDashboard: Proposal detail fetched:', response.data.proposal.id);
         } catch (err: any) {
-            console.error("Error fetching proposal detail:", err);
+            console.error("ChairDashboard: Error fetching proposal detail:", err);
             const axiosError = err as AxiosError;
             if (axiosError.response?.status === 401) {
                 setError("Authentication failed.");
                 logout();
+                console.log('ChairDashboard: 401 error in fetchProposalDetail, logging out');
             } else if (axiosError.response?.status === 403) {
                 setError("Forbidden to view this detail.");
+                console.log('ChairDashboard: 403 Forbidden in fetchProposalDetail');
             } else if (axiosError.response?.status === 404) {
                 setError("Proposal not found.");
+                console.log('ChairDashboard: 404 Proposal not found');
             } else {
                 setError((axiosError.response?.data as any)?.message || axiosError.message || 'Failed to fetch detail');
+                console.log('ChairDashboard: Detail fetch error:', axiosError.message);
             }
             setSelectedProposalData(null);
         } finally {
@@ -246,27 +281,20 @@ const ChairDashboard: React.FC = () => {
     // Stats Calculation
     const calculateStats = (proposalList: ProposalListItem[]) => {
         if (!Array.isArray(proposalList)) {
-            return { completedProposalsCount: 0, pendingProposalsCount: 0, rejectedProposalsCount: 0, awaitingChairCount: 0, totalProposalsCount: 0 };
+            return { approvedProposalsCount: 0, pendingProposalsCount: 0, rejectedProposalsCount: 0, reviewProposalsCount: 0, totalProposalsCount: 0 };
         }
-        let completed = 0, pending = 0, rejected = 0, awaitingChairCount = 0;
+        let approved = 0, pending = 0, rejected = 0, review = 0;
         proposalList.forEach(p => {
             if (!p || typeof p.status !== 'string') return;
             const status = p.status.toLowerCase();
-            if (status === 'completed') completed++;
-            else if (status === 'pending') {
-                pending++;
-                if (p.awaiting === 'chair') awaitingChairCount++;
-            }
+            if (status === 'completed') approved++;
+            else if (status === 'pending') pending++;
             else if (status === 'rejected') rejected++;
-            // // Uncomment if backend adds 'Review' status
-            // else if (status === 'review') {
-            //     pending++;
-            //     if (p.awaiting === 'chair') awaitingChairCount++;
-            // }
+            else if (status === 'review') review++;
         });
-        return { completedProposalsCount: completed, pendingProposalsCount: pending, rejectedProposalsCount: rejected, awaitingChairCount, totalProposalsCount: proposalList.length };
+        return { approvedProposalsCount: approved, pendingProposalsCount: pending, rejectedProposalsCount: rejected, reviewProposalsCount: review, totalProposalsCount: proposalList.length };
     };
-    const stats = Array.isArray(proposals) ? calculateStats(proposals) : { completedProposalsCount: 0, pendingProposalsCount: 0, rejectedProposalsCount: 0, awaitingChairCount: 0, totalProposalsCount: 0 };
+    const stats = Array.isArray(proposals) ? calculateStats(proposals) : { approvedProposalsCount: 0, pendingProposalsCount: 0, rejectedProposalsCount: 0, reviewProposalsCount: 0, totalProposalsCount: 0 };
 
     // Recent Proposals
     const recentAppliedProposals = Array.isArray(proposals) ? [...proposals]
@@ -286,8 +314,7 @@ const ChairDashboard: React.FC = () => {
         if (lowerStatus === 'completed') tags.push('Done');
         if (lowerStatus === 'rejected') tags.push('Rejected');
         if (lowerStatus === 'pending' && p.awaiting === 'chair') tags.push('Awaiting Action');
-        // // Uncomment if backend adds 'Review' status
-        // if (lowerStatus === 'review') tags.push('Review');
+        if (lowerStatus === 'review') tags.push('Review');
 
         return {
             id: String(p.id),
@@ -341,7 +368,7 @@ const ChairDashboard: React.FC = () => {
     // Map Detailed Response to UnifiedProposal
     const mapDetailResponseToUnifiedProposal = (detailData: DetailedProposalResponse): UnifiedProposal | null => {
         if (!detailData || !detailData.proposal) {
-            console.error("mapDetailResponseToUnifiedProposal received invalid detailData:", detailData);
+            console.error("ChairDashboard: mapDetailResponseToUnifiedProposal received invalid detailData:", detailData);
             return null;
         }
 
@@ -355,11 +382,8 @@ const ChairDashboard: React.FC = () => {
         const submissionTs = p.created_at || '';
 
         let rejectionMsg = '';
-        // let reviewMsg = '';
         detailData.messages?.forEach(msg => {
             if (p.status === 'Rejected' && !rejectionMsg) rejectionMsg = msg.message;
-            // // Uncomment if backend adds 'Review' status
-            // if (p.status === 'Review' && !reviewMsg) reviewMsg = msg.message;
         });
 
         const tags: string[] = [];
@@ -367,8 +391,7 @@ const ChairDashboard: React.FC = () => {
         if (lowerStatus === 'completed') tags.push('Done');
         if (lowerStatus === 'rejected') tags.push('Rejected');
         if (lowerStatus === 'pending' && p.awaiting === 'chair') tags.push('Awaiting Action');
-        // // Uncomment if backend adds 'Review' status
-        // if (lowerStatus === 'review') tags.push('Review');
+        if (lowerStatus === 'review') tags.push('Review');
 
         return {
             id: String(p.id),
@@ -401,7 +424,6 @@ const ChairDashboard: React.FC = () => {
             pastEvents: p.past || '',
             relevantDetails: p.other || '',
             rejectionMessage: rejectionMsg,
-            // reviewMessage: reviewMsg,
             messages: detailData.messages,
             chief: detailData.chief,
             user: detailData.user,
@@ -415,7 +437,7 @@ const ChairDashboard: React.FC = () => {
         if (!isNaN(proposalIdNum)) {
             fetchProposalDetail(proposalIdNum);
         } else {
-            console.error("Invalid numeric ID parsed from proposal:", proposal.id);
+            console.error("ChairDashboard: Invalid numeric ID parsed from proposal:", proposal.id);
             setError("Could not load details for the selected proposal.");
         }
     }, [fetchProposalDetail]);
@@ -429,7 +451,7 @@ const ChairDashboard: React.FC = () => {
     }
 
     if (user?.role !== 'chair' && !loading) {
-        return <div className="alert alert-error shadow-lg m-4"><div><span>Access Denied: This dashboard is for Chairpersons only.</span></div></div>;
+        return <div className="alert alert-error shadow-lg m-4"><div><span>Access Denied: This dashboard is for Chairpersons only. Current role: {user?.role || 'none'}</span></div></div>;
     }
 
     if (!user && !loading) {
@@ -451,7 +473,7 @@ const ChairDashboard: React.FC = () => {
                 Chairperson Dashboard
             </h1>
 
-            <Stats {...stats} />
+            {!loading && !error && <Stats {...stats} />}
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-6">

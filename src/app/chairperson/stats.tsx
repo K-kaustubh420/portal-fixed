@@ -1,4 +1,3 @@
-// stats.tsx
 import React from 'react';
 import dynamic from 'next/dynamic';
 import { Line } from 'react-chartjs-2';
@@ -129,11 +128,17 @@ const Stats: React.FC<StatsProps> = ({
     rejectedProposalsCount,
     reviewProposalsCount,
 }) => {
+    const safeTotal = totalProposalsCount ?? 0;
+    const safeApproved = approvedProposalsCount ?? 0;
+    const safePending = pendingProposalsCount ?? 0;
+    const safeRejected = rejectedProposalsCount ?? 0;
+    const safeReview = reviewProposalsCount ?? 0;
+
     const pieData = {
         labels: ['Approved', 'Pending', 'Rejected', 'Review'],
         datasets: [{
             label: 'Proposal Status',
-            data: [approvedProposalsCount, pendingProposalsCount, rejectedProposalsCount, reviewProposalsCount],
+            data: [safeApproved, safePending, safeRejected, safeReview],
             backgroundColor: ['#A78BFA', '#F9A8D4', '#EF4444', '#3AB7BF'],
             borderWidth: 0,
             hoverOffset: 5
@@ -145,30 +150,31 @@ const Stats: React.FC<StatsProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="card stat shadow-md rounded-lg border-t-4 border-blue-500 bg-white">
                     <div className="stat-figure text-blue-500"><ListChecks className="h-6 w-6" /></div>
-                    <div className="stat-value">{totalProposalsCount.toLocaleString()}</div>
+                    <div className="stat-value">{safeTotal.toLocaleString()}</div>
                     <div className="stat-title text-gray-500">Total Applied</div>
                 </div>
 
                 <div className="card stat shadow-md rounded-lg border-t-4 border-green-500 bg-white">
                     <div className="stat-figure text-green-500"><CheckCircle className="h-6 w-6" /></div>
-                    <div className="stat-value">{approvedProposalsCount.toLocaleString()}</div>
+                    <div className="stat-value">{safeApproved.toLocaleString()}</div>
                     <div className="stat-title text-gray-500">Approved</div>
                 </div>
 
                 <div className="card stat shadow-md rounded-lg border-t-4 border-red-500 bg-white">
                     <div className="stat-figure text-red-500"><XCircle className="h-6 w-6" /></div>
-                    <div className="stat-value">{rejectedProposalsCount.toLocaleString()}</div>
+                    <div className="stat-value">{safeRejected.toLocaleString()}</div>
                     <div className="stat-title text-gray-500">Rejected</div>
                 </div>
 
                 <div className="card stat shadow-md rounded-lg border-t-4 border-yellow-500 bg-white">
                     <div className="stat-figure text-yellow-500"><Clock className="h-6 w-6" /></div>
-                    <div className="stat-value">{pendingProposalsCount.toLocaleString()}</div>
+                    <div className="stat-value">{safePending.toLocaleString()}</div>
                     <div className="stat-title text-gray-500">Pending</div>
                 </div>
+
                 <div className="card stat shadow-md rounded-lg border-t-4 border-info bg-white">
                     <div className="stat-figure text-info"><Clock className="h-6 w-6" /></div>
-                    <div className="stat-value">{reviewProposalsCount.toLocaleString()}</div>
+                    <div className="stat-value">{safeReview.toLocaleString()}</div>
                     <div className="stat-title text-gray-500">Review</div>
                 </div>
             </div>
@@ -178,11 +184,11 @@ const Stats: React.FC<StatsProps> = ({
                     <div className="card shadow-md rounded-lg p-5 md:p-7 bg-white">
                         <div className="flex justify-between mb-4">
                             <div>
-                                <h5 className="text-3xl font-bold text-gray-700 pb-2">{totalProposalsCount.toLocaleString()}</h5>
+                                <h5 className="text-3xl font-bold text-gray-700 pb-2">{safeTotal.toLocaleString()}</h5>
                                 <p className="text-base font-normal text-gray-700">Proposals this year</p>
                             </div>
                             <div className="flex items-center px-2.5 py-0.5 text-base font-semibold text-green-800 bg-green-100 rounded-full">
-                                +{(totalProposalsCount > 0 ? (approvedProposalsCount / totalProposalsCount * 100).toFixed(1) : 0)}%
+                                +{(safeTotal > 0 ? (safeApproved / safeTotal * 100).toFixed(1) : 0)}%
                                 <ArrowUpRight className="w-3 h-3 ms-1" aria-hidden="true" color="currentColor" />
                             </div>
                         </div>
