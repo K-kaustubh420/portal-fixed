@@ -1,14 +1,13 @@
-// recents.tsx
 import React from 'react';
-import Image from 'next/image';
 
 interface Proposal {
     id: string;
     title: string;
+    status: 'Approved' | 'Pending' | 'Rejected' | 'Review';
+    date: string;
     organizer: string;
-    status: string;
-    convenerEmail: string;
-    submissionTimestamp: string
+    convenerName: string;
+    awaiting?: string | null;
 }
 
 interface RecentsProps {
@@ -20,46 +19,44 @@ const Recents: React.FC<RecentsProps> = ({ recentAppliedProposals, handleProposa
     return (
         <div className="card shadow-md rounded-lg bg-white">
             <div className="card-body">
-                <div className="flex justify-between items-center mb-4">
-                    <h2 className="card-title text-lg font-bold text-gray-700">Recently Applied Proposals</h2>
-                </div>
-                <div className="space-y-3">
-                    {recentAppliedProposals.map(proposal => (
-                        <div
-                            key={proposal.id}
-                            className="flex items-center justify-between cursor-pointer"
-                            onClick={() => handleProposalClick(proposal)}
-                        >
-                            <div className="flex items-center">
-                                <div className="avatar mr-3">
-                                    <div className="mask mask-squircle w-8 h-8">
-                                        {proposal.convenerEmail ? (
-                                            <div className="bg-neutral text-neutral-content w-full h-full flex items-center justify-center rounded-full">
-                                                <span className="text-xs font-bold">{proposal.convenerEmail.substring(0, 2).toUpperCase()}</span>
+                <h2 className="card-title text-lg font-bold text-gray-700 mb-4">Associate Chair Recent Proposals</h2>
+                <div className="overflow-x-auto">
+                    <table className="table table-compact w-full">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Organizing Department</th>
+                                <th>Convener</th>
+                                <th>Date</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {recentAppliedProposals.length > 0 ? (
+                                recentAppliedProposals.map((proposal) => (
+                                    <tr
+                                        onClick={() => handleProposalClick(proposal)}
+                                        key={proposal.id}
+                                        className="cursor-pointer"
+                                    >
+                                        <td>{proposal.title}</td>
+                                        <td>{proposal.organizer}</td>
+                                        <td>{proposal.convenerName}</td>
+                                        <td>{new Date(proposal.date).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}</td>
+                                        <td>
+                                            <div className={`badge badge-sm badge-${proposal.status === 'Approved' ? 'success' : proposal.status === 'Pending' ? 'warning' : proposal.status === 'Rejected' ? 'error' : proposal.status === 'Review' ? 'info' : ''}`}>
+                                                {proposal.status}
                                             </div>
-                                        ) : (
-                                            <Image
-                                                src={`/avatar.png`} // Default avatar image
-                                                alt={proposal.title || "Avatar"}
-                                                className="w-full h-full object-cover"
-                                                height={10}
-                                                width={10}
-                                                placeholder="blur"
-                                                blurDataURL="/placeholder.png"
-                                            />
-                                        )}
-                                    </div>
-                                </div>
-                                <div>
-                                    <div className="font-semibold text-gray-600">{proposal.organizer}</div>
-                                    <div className="text-sm text-gray-500">{proposal.title}</div>
-                                </div>
-                            </div>
-                            <div className={`badge badge-sm badge-${proposal.status === 'Approved' ? 'success' : proposal.status === 'Pending' ? 'warning' : 'error'}`}>
-                                {proposal.status}
-                            </div>
-                        </div>
-                    ))}
+                                        </td>
+                                    </tr>
+                                ))
+                            ) : (
+                                <tr>
+                                    <td colSpan={5} className="text-center italic">No recent proposals.</td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>

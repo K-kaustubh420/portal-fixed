@@ -56,24 +56,21 @@ export interface User {
     dept_id: number;
 }
 
+// Simplified Proposal interface to match overview.tsx and recents.tsx
 export interface Proposal {
     id: string;
     title: string;
-    status: 'Completed' | 'Pending' | 'Rejected' | 'Review';
+    status: 'Approved' | 'Pending' | 'Rejected' | 'Review';
     date: string;
     organizer: string;
     convenerName: string;
-    convenerEmail: string;
-    submissionTimestamp: string;
-    designation?: string;
-    tags?: string[];
     awaiting?: string | null;
 }
 
 export interface UnifiedProposal {
     id: string;
     title: string;
-    status: 'Completed' | 'Pending' | 'Rejected' | 'Review';
+    status: 'Approved' | 'Pending' | 'Rejected' | 'Review';
     date: string;
     organizer: string;
     convenerName: string;
@@ -119,7 +116,7 @@ export interface UnifiedProposal {
 interface ProposalListItem {
     id: number;
     user_id: number;
-    chief_id: number;
+    chief_id?: number | null;
     title: string;
     description: string;
     start: string;
@@ -127,7 +124,7 @@ interface ProposalListItem {
     category: string;
     past: string | null;
     other: string | null;
-    status: 'Completed' | 'Pending' | 'Rejected' | 'Review';
+    status: 'completed' | 'pending' | 'rejected' | 'review';
     participant_expected: number | null;
     participant_categories: string | null;
     fund_uni: number | null;
@@ -136,20 +133,42 @@ interface ProposalListItem {
     fund_others: number | null;
     created_at: string | null;
     updated_at: string | null;
-    cheif_reason: string;
-    cheif_hotel_name: string;
-    cheif_hotel_address: string;
-    cheif_hotel_duration: string;
-    cheif_hotel_type: string;
-    cheif_travel_name: string;
-    cheif_travel_address: string;
-    cheif_travel_duration: string;
-    cheif_travel_type: string;
+    cheif_reason?: string | null;
+    cheif_hotel_name?: string | null;
+    cheif_hotel_address?: string | null;
+    cheif_hotel_duration?: string | null;
+    cheif_hotel_type?: string | null;
+    cheif_travel_name?: string | null;
+    cheif_travel_address?: string | null;
+    cheif_travel_duration?: string | null;
+    cheif_travel_type?: string | null;
     department_name: string;
     awaiting: string | null;
+    faculty?: {
+        id: number;
+        name: string;
+        email: string;
+        email_verified_at: string | null;
+        phone: string;
+        role: string;
+        scope: string | null;
+        designation: string;
+        dept_id: number;
+        created_at: string;
+        updated_at: string;
+        department: {
+            id: number;
+            name: string;
+            scope: string;
+            status: string;
+            created_at: string;
+            updated_at: string;
+            hod_id: number;
+        };
+    };
 }
 
-// Interface matching the FULL response of GET /api/chair/proposals/{proposal}
+// Interface matching the FULL response of GET /api/chair/proposal/{proposal}
 interface DetailedProposalResponse {
     proposal: ProposalListItem;
     chief: User | null;
@@ -200,11 +219,15 @@ const ChairDashboard: React.FC = () => {
         const proposalEndpoint = `${API_BASE_URL}/api/chair/proposals`;
         try {
             console.log('ChairDashboard: Fetching proposals with token:', token.slice(0, 10) + '...');
-            const response = await axios.get<ProposalListItem[]>(proposalEndpoint, {
+            interface ApiResponse {
+                status: string;
+                proposals: ProposalListItem[];
+            }
+            const response = await axios.get<ApiResponse>(proposalEndpoint, {
                 headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
             });
-            setProposals(response.data);
-            console.log('ChairDashboard: Proposals fetched:', response.data.length);
+            setProposals(response.data.proposals);
+            console.log('ChairDashboard: Proposals fetched:', response.data.proposals.length);
         } catch (err: any) {
             console.error("ChairDashboard: Error fetching Chair proposals:", err);
             const axiosError = err as AxiosError;
@@ -247,31 +270,29 @@ const ChairDashboard: React.FC = () => {
         }
         setIsPopupLoading(true);
         setError(null);
-        const detailEndpoint = `${API_BASE_URL}/api/chair/proposals/${proposalId}`;
+        const detailEndpoint = `${API_BASE_URL}/api/chair/proposal/${proposalId}`;
         try {
-            console.log('ChairDashboard: Fetching proposal detail:', proposalId);
+            console.log('ChairDashboard: Fetching proposal detail:', { proposalId, endpoint: detailEndpoint });
             const response = await axios.get<DetailedProposalResponse>(detailEndpoint, {
                 headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
             });
+            console.log('ChairDashboard: Proposal detail fetched:', response.data);
             setSelectedProposalData(response.data);
-            console.log('ChairDashboard: Proposal detail fetched:', response.data.proposal.id);
         } catch (err: any) {
             console.error("ChairDashboard: Error fetching proposal detail:", err);
             const axiosError = err as AxiosError;
+            let errorMessage = 'Failed to fetch proposal details';
             if (axiosError.response?.status === 401) {
-                setError("Authentication failed.");
+                errorMessage = "Authentication failed.";
                 logout();
-                console.log('ChairDashboard: 401 error in fetchProposalDetail, logging out');
             } else if (axiosError.response?.status === 403) {
-                setError("Forbidden to view this detail.");
-                console.log('ChairDashboard: 403 Forbidden in fetchProposalDetail');
+                errorMessage = "Forbidden to view this proposal.";
             } else if (axiosError.response?.status === 404) {
-                setError("Proposal not found.");
-                console.log('ChairDashboard: 404 Proposal not found');
+                errorMessage = `Proposal with ID ${proposalId} not found.`;
             } else {
-                setError((axiosError.response?.data as any)?.message || axiosError.message || 'Failed to fetch detail');
-                console.log('ChairDashboard: Detail fetch error:', axiosError.message);
+                errorMessage = (axiosError.response?.data as any)?.message || axiosError.message || 'Failed to fetch proposal details';
             }
+            setError(errorMessage);
             setSelectedProposalData(null);
         } finally {
             setIsPopupLoading(false);
@@ -305,8 +326,8 @@ const ChairDashboard: React.FC = () => {
     // Map List Item to UnifiedProposal
     const mapListItemToUnifiedProposal = (p: ProposalListItem): UnifiedProposal => {
         const calculatedCost = (p.fund_uni ?? 0) + (p.fund_registration ?? 0) + (p.fund_sponsor ?? 0) + (p.fund_others ?? 0);
-        const placeholderEmail = `user${p.user_id}@example.com`;
-        const placeholderName = `User ID: ${p.user_id}`;
+        const placeholderEmail = p.faculty?.email || `user${p.user_id}@example.com`;
+        const placeholderName = p.faculty?.name || `User ID: ${p.user_id}`;
         const submissionTs = p.created_at || '';
 
         const tags: string[] = [];
@@ -321,7 +342,7 @@ const ChairDashboard: React.FC = () => {
             title: p.title || 'Untitled Proposal',
             description: p.description || '',
             category: p.category || 'Uncategorized',
-            status: p.status,
+            status: p.status === 'completed' ? 'Approved' : p.status as 'Pending' | 'Rejected' | 'Review',
             date: p.start || '',
             eventStartDate: p.start || '',
             eventEndDate: p.end || '',
@@ -336,17 +357,31 @@ const ChairDashboard: React.FC = () => {
             cost: calculatedCost,
             estimatedBudget: calculatedCost,
             detailedBudget: [],
-            fundingDetails: { universityFund: p.fund_uni, registrationFund: p.fund_registration, sponsorshipFund: p.fund_sponsor, otherSourcesFund: p.fund_others },
+            fundingDetails: {
+                universityFund: p.fund_uni,
+                registrationFund: p.fund_registration,
+                sponsorshipFund: p.fund_sponsor,
+                otherSourcesFund: p.fund_others
+            },
             sponsorshipDetails: [],
             tags: tags,
             pastEvents: p.past || '',
             relevantDetails: p.other || '',
-            designation: '',
+            designation: p.faculty?.designation || '',
             durationEvent: '',
             organizingDepartment: p.department_name || '',
             awaiting: p.awaiting,
             messages: [],
-            rejectionMessage: ''
+            rejectionMessage: '',
+            chief: null,
+            user: p.faculty ? {
+                name: p.faculty.name,
+                department: p.faculty.dept_id,
+                email: p.faculty.email,
+                role: p.faculty.role,
+                designation: p.faculty.designation,
+                dept_id: p.faculty.dept_id
+            } : null
         };
     };
 
@@ -358,10 +393,6 @@ const ChairDashboard: React.FC = () => {
         date: p.date,
         organizer: p.organizer,
         convenerName: p.convenerName,
-        convenerEmail: p.convenerEmail,
-        submissionTimestamp: p.submissionTimestamp,
-        designation: p.designation,
-        tags: p.tags,
         awaiting: p.awaiting
     });
 
@@ -376,14 +407,14 @@ const ChairDashboard: React.FC = () => {
         const submitter = detailData.user;
         const chiefGuest = detailData.chief;
         const calculatedCost = (p.fund_uni ?? 0) + (p.fund_registration ?? 0) + (p.fund_sponsor ?? 0) + (p.fund_others ?? 0);
-        const convenerName = submitter?.name || `User ID: ${p.user_id}`;
-        const convenerEmail = submitter?.email || `user${p.user_id}@example.com`;
-        const designation = submitter?.designation || '';
+        const convenerName = submitter?.name || p.faculty?.name || `User ID: ${p.user_id}`;
+        const convenerEmail = submitter?.email || p.faculty?.email || `user${p.user_id}@example.com`;
+        const designation = submitter?.designation || p.faculty?.designation || '';
         const submissionTs = p.created_at || '';
 
         let rejectionMsg = '';
         detailData.messages?.forEach(msg => {
-            if (p.status === 'Rejected' && !rejectionMsg) rejectionMsg = msg.message;
+            if (p.status === 'rejected' && !rejectionMsg) rejectionMsg = msg.message;
         });
 
         const tags: string[] = [];
@@ -398,7 +429,7 @@ const ChairDashboard: React.FC = () => {
             title: p.title || 'Untitled Proposal',
             description: p.description || '',
             category: p.category || 'Uncategorized',
-            status: p.status,
+            status: p.status === 'completed' ? 'Approved' : p.status as 'Pending' | 'Rejected' | 'Review',
             date: p.start || '',
             eventStartDate: p.start || '',
             eventEndDate: p.end || '',
@@ -406,7 +437,7 @@ const ChairDashboard: React.FC = () => {
             eventDate: p.start || '',
             eventDescription: p.description || '',
             eventTitle: p.title || 'Untitled Proposal',
-            organizer: detailData.department_name || submitter?.name || `User ID: ${p.user_id}`,
+            organizer: detailData.department_name || convenerName,
             convenerName: convenerName,
             convenerEmail: convenerEmail,
             email: convenerEmail,
@@ -416,7 +447,12 @@ const ChairDashboard: React.FC = () => {
             organizingDepartment: detailData.department_name || '',
             detailedBudget: detailData.items || [],
             durationEvent: '',
-            fundingDetails: { universityFund: p.fund_uni, registrationFund: p.fund_registration, sponsorshipFund: p.fund_sponsor, otherSourcesFund: p.fund_others },
+            fundingDetails: {
+                universityFund: p.fund_uni,
+                registrationFund: p.fund_registration,
+                sponsorshipFund: p.fund_sponsor,
+                otherSourcesFund: p.fund_others
+            },
             sponsorshipDetails: detailData.sponsors || [],
             tags: tags,
             chiefGuestName: chiefGuest?.name || '',
@@ -424,15 +460,23 @@ const ChairDashboard: React.FC = () => {
             pastEvents: p.past || '',
             relevantDetails: p.other || '',
             rejectionMessage: rejectionMsg,
-            messages: detailData.messages,
+            messages: detailData.messages || [],
             chief: detailData.chief,
-            user: detailData.user,
+            user: detailData.user || (p.faculty ? {
+                name: p.faculty.name,
+                department: p.faculty.dept_id,
+                email: p.faculty.email,
+                role: p.faculty.role,
+                designation: p.faculty.designation,
+                dept_id: p.faculty.dept_id
+            } : null),
             awaiting: p.awaiting
         };
     };
 
     // Event Handlers
     const handleProposalClick = useCallback((proposal: Proposal) => {
+        console.log('ChairDashboard: Proposal clicked:', proposal);
         const proposalIdNum = parseInt(proposal.id, 10);
         if (!isNaN(proposalIdNum)) {
             fetchProposalDetail(proposalIdNum);
@@ -458,7 +502,7 @@ const ChairDashboard: React.FC = () => {
         return <div className="alert alert-warning shadow-lg m-4"><div><span>Please log in to view the dashboard.</span></div></div>;
     }
 
-    if (error && !isPopupLoading) {
+    if (error && !isPopupLoading && !selectedProposalData) {
         return <div className="alert alert-error shadow-lg m-4"><div><span>Error: {error}</span></div></div>;
     }
 
@@ -492,7 +536,11 @@ const ChairDashboard: React.FC = () => {
                 <CalendarView proposals={unifiedProposals} />
             </div>
 
-            {proposalForPopup && (
+            {isPopupLoading ? (
+                <div className="fixed inset-0 bg-black bg-opacity-30 flex justify-center items-center z-60">
+                    <span className="loading loading-lg loading-spinner text-white"></span>
+                </div>
+            ) : proposalForPopup ? (
                 <Popup
                     selectedProposal={proposalForPopup}
                     closePopup={closePopup}
@@ -501,13 +549,11 @@ const ChairDashboard: React.FC = () => {
                     apiBaseUrl={API_BASE_URL}
                     userRole={user?.role || ''}
                 />
-            )}
-
-            {isPopupLoading && (
-                <div className="fixed inset-0 bg-black bg-opacity-30 flex justify-center items-center z-60">
-                    <span className="loading loading-lg loading-spinner text-white"></span>
+            ) : error ? (
+                <div className="alert alert-error shadow-lg m-4">
+                    <div><span>Error: {error}</span></div>
                 </div>
-            )}
+            ) : null}
         </div>
     );
 };

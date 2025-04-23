@@ -59,21 +59,17 @@ export interface User {
 export interface Proposal {
     id: string;
     title: string;
-    status: 'Completed' | 'Pending' | 'Rejected' | 'Review';
+    status: 'Approved' | 'Pending' | 'Rejected' | 'Review';
     date: string;
     organizer: string;
     convenerName: string;
-    convenerEmail: string;
-    submissionTimestamp: string;
-    designation?: string;
-    tags?: string[];
     awaiting?: string | null;
 }
 
 export interface UnifiedProposal {
     id: string;
     title: string;
-    status: 'Completed' | 'Pending' | 'Rejected' | 'Review';
+    status: 'Approved' | 'Pending' | 'Rejected' | 'Review';
     date: string;
     organizer: string;
     convenerName: string;
@@ -115,10 +111,11 @@ export interface UnifiedProposal {
     awaiting: string | null;
 }
 
+// Interface matching items from GET /api/vice/proposals LIST response
 interface ProposalListItem {
     id: number;
     user_id: number;
-    chief_id: number;
+    chief_id?: number | null;
     title: string;
     description: string;
     start: string;
@@ -126,7 +123,7 @@ interface ProposalListItem {
     category: string;
     past: string | null;
     other: string | null;
-    status: 'Completed' | 'Pending' | 'Rejected' | 'Review';
+    status: 'completed' | 'pending' | 'rejected' | 'review';
     participant_expected: number | null;
     participant_categories: string | null;
     fund_uni: number | null;
@@ -135,19 +132,42 @@ interface ProposalListItem {
     fund_others: number | null;
     created_at: string | null;
     updated_at: string | null;
-    cheif_reason: string;
-    cheif_hotel_name: string;
-    cheif_hotel_address: string;
-    cheif_hotel_duration: string;
-    cheif_hotel_type: string;
-    cheif_travel_name: string;
-    cheif_travel_address: string;
-    cheif_travel_duration: string;
-    cheif_travel_type: string;
+    cheif_reason?: string | null;
+    cheif_hotel_name?: string | null;
+    cheif_hotel_address?: string | null;
+    cheif_hotel_duration?: string | null;
+    cheif_hotel_type?: string | null;
+    cheif_travel_name?: string | null;
+    cheif_travel_address?: string | null;
+    cheif_travel_duration?: string | null;
+    cheif_travel_type?: string | null;
     department_name: string;
     awaiting: string | null;
+    faculty?: {
+        id: number;
+        name: string;
+        email: string;
+        email_verified_at: string | null;
+        phone: string;
+        role: string;
+        scope: string | null;
+        designation: string;
+        dept_id: number;
+        created_at: string;
+        updated_at: string;
+        department: {
+            id: number;
+            name: string;
+            scope: string;
+            status: string;
+            created_at: string;
+            updated_at: string;
+            hod_id: number;
+        };
+    };
 }
 
+// Interface matching the FULL response of GET /api/vice/proposal/{proposal}
 interface DetailedProposalResponse {
     proposal: ProposalListItem;
     chief: User | null;
@@ -158,98 +178,72 @@ interface DetailedProposalResponse {
     department_name: string;
 }
 
+// API URL
 const API_BASE_URL = "https://pmspreview-htfbhkdnffcpf5dz.centralindia-01.azurewebsites.net";
 
-const ViceChairDashboard: React.FC = () => {
+const ViceDashboard: React.FC = () => {
     const [proposals, setProposals] = useState<ProposalListItem[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
     const [selectedProposalData, setSelectedProposalData] = useState<DetailedProposalResponse | null>(null);
-    const [isPopupLoading, setIsPopupLoading] = useState(false);
+    const [isPopupLoading, setIsPopupLoading] = useState<boolean>(false);
     const { token, user, logout } = useAuth();
 
     // Debug Authentication and Stats
     useEffect(() => {
-        console.log('ViceChairDashboard: useAuth output:', { token, user, userRole: user?.role });
-        console.log('ViceChairDashboard: proposals state:', proposals);
-        console.log('ViceChairDashboard: stats computed:', calculateStats(proposals));
+        console.log('ViceDashboard: useAuth output:', { token, user, userRole: user?.role });
+        console.log('ViceDashboard: proposals state:', proposals);
+        console.log('ViceDashboard: stats computed:', calculateStats(proposals));
         if (typeof window !== 'undefined' && window.localStorage) {
-            console.log('ViceChairDashboard: localStorage contents:', {
+            console.log('ViceDashboard: localStorage contents:', {
                 authToken: localStorage.getItem('authToken'),
                 userData: localStorage.getItem('userData'),
                 allKeys: Object.keys(localStorage)
             });
             const authData = loadAuthData();
-            console.log('ViceChairDashboard: loadAuthData result:', authData);
+            console.log('ViceDashboard: loadAuthData result:', authData);
         }
     }, [token, user, proposals]);
 
-    // Fetch Proposals with Retry Logic
-    const fetchProposals = useCallback(async (retries = 3) => {
+    // Fetch Proposals
+    const fetchProposals = useCallback(async () => {
         if (!token || !user || user.role !== 'vice_chair') {
-            setError(user ? "Access denied. User is not a Vice Chairperson." : "User not authenticated.");
+            setError(user ? "Access denied. User is not an Associate Chairperson." : "User not authenticated.");
             setLoading(false);
-            console.log('ViceChairDashboard: fetchProposals skipped due to invalid auth:', { tokenExists: !!token, userRole: user?.role });
+            console.log('ViceDashboard: fetchProposals skipped due to invalid auth:', { tokenExists: !!token, userRole: user?.role });
             return;
         }
         setLoading(true);
         setError(null);
         const proposalEndpoint = `${API_BASE_URL}/api/vice/proposals`;
-        for (let attempt = 1; attempt <= retries; attempt++) {
-            try {
-                console.log(`ViceChairDashboard: Fetching proposals (Attempt ${attempt}) with token:`, token.slice(0, 10) + '...');
-                const response = await axios.get<ProposalListItem[]>(proposalEndpoint, {
-                    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
-                });
-                setProposals(response.data);
-                console.log('ViceChairDashboard: Proposals fetched:', response.data.length);
-                setLoading(false);
-                return;
-            } catch (err: unknown) {
-                if (axios.isAxiosError(err)) {
-                    const axiosError = err as AxiosError<{ message?: string }>;
-                    console.error(`ViceChairDashboard: Error fetching proposals (Attempt ${attempt}):`, {
-                        status: axiosError.response?.status ?? 'N/A',
-                        data: axiosError.response?.data ?? 'No response data',
-                        headers: axiosError.response?.headers ?? 'No headers',
-                        message: axiosError.message ?? 'No message',
-                        request: {
-                            url: axiosError.request?.responseURL ?? proposalEndpoint,
-                            headers: axiosError.config?.headers ?? 'No request headers'
-                        },
-                        code: axiosError.code ?? 'No error code'
-                    });
-                    if (attempt === retries) {
-                        if (axiosError.response?.status === 401) {
-                            setError("Authentication failed. Please log in again.");
-                            logout();
-                            console.log('ViceChairDashboard: 401 error, logging out');
-                        } else if (axiosError.response?.status === 403) {
-                            setError("You do not have permission to view proposals.");
-                            console.log('ViceChairDashboard: 403 Forbidden');
-                        } else if (axiosError.response?.status === 500) {
-                            setError("Server error occurred while fetching proposals. Please try again later or contact support.");
-                            console.log('ViceChairDashboard: 500 Server Error');
-                        } else {
-                            setError(axiosError.response?.data?.message || axiosError.message || 'Failed to fetch proposals');
-                            console.log('ViceChairDashboard: Fetch error:', axiosError.message);
-                        }
-                        setProposals([]);
-                        setLoading(false);
-                    }
-                } else {
-                    console.error(`ViceChairDashboard: Unexpected error fetching proposals (Attempt ${attempt}):`, {
-                        error: err,
-                        message: err instanceof Error ? err.message : 'Unknown error',
-                        stack: err instanceof Error ? err.stack : 'No stack trace'
-                    });
-                    if (attempt === retries) {
-                        setError("An unexpected error occurred while fetching proposals. Please try again later.");
-                        setProposals([]);
-                        setLoading(false);
-                    }
-                }
+        try {
+            console.log('ViceDashboard: Fetching proposals with token:', token.slice(0, 10) + '...');
+            interface ApiResponse {
+                status: string;
+                proposals: ProposalListItem[];
             }
+            const response = await axios.get<ApiResponse>(proposalEndpoint, {
+                headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
+            });
+            setProposals(response.data.proposals);
+            console.log('ViceDashboard: Proposals fetched:', response.data.proposals.length);
+        } catch (err: unknown) {
+            console.error("ViceDashboard: Error fetching Vice Chair proposals:", err);
+            const axiosError = err as AxiosError;
+            if (axiosError.response?.status === 401) {
+                setError("Authentication failed.");
+                logout();
+                console.log('ViceDashboard: 401 error, logging out');
+            } else if (axiosError.response?.status === 403) {
+                setError("Forbidden.");
+                console.log('ViceDashboard: 403 Forbidden');
+            } else {
+                setError((axiosError.response?.data as any)?.message || axiosError.message || 'Failed to fetch proposals');
+                console.log('ViceDashboard: Fetch error:', axiosError.message);
+            }
+            setProposals([]);
+        } finally {
+            setLoading(false);
         }
     }, [token, user, logout]);
 
@@ -257,71 +251,47 @@ const ViceChairDashboard: React.FC = () => {
         if (user?.role === 'vice_chair') {
             fetchProposals();
         } else if (user) {
-            setError("Access denied. This dashboard is for Vice Chairpersons only.");
+            setError("Access denied. This dashboard is for Associate Chairpersons only.");
             setLoading(false);
-            console.log('ViceChairDashboard: Access denied, user role:', user?.role);
+            console.log('ViceDashboard: Access denied, user role:', user?.role);
         } else {
             setError("User not authenticated.");
             setLoading(false);
-            console.log('ViceChairDashboard: No user authenticated');
+            console.log('ViceDashboard: No user authenticated');
         }
     }, [fetchProposals, user]);
 
     // Fetch Proposal Detail
     const fetchProposalDetail = useCallback(async (proposalId: number | string) => {
         if (!token || !user || user.role !== 'vice_chair') {
-            console.error("ViceChairDashboard: fetchProposalDetail cancelled: Missing token, user, or incorrect role.", { tokenExists: !!token, userRole: user?.role });
+            console.error("ViceDashboard: fetchProposalDetail cancelled: Missing token, user, or incorrect role.", { tokenExists: !!token, userRole: user?.role });
             return;
         }
         setIsPopupLoading(true);
         setError(null);
-        const detailEndpoint = `${API_BASE_URL}/api/vice/proposals/${proposalId}`;
+        const detailEndpoint = `${API_BASE_URL}/api/vice/proposal/${proposalId}`;
         try {
-            console.log('ViceChairDashboard: Fetching proposal detail:', proposalId);
+            console.log('ViceDashboard: Fetching proposal detail:', { proposalId, endpoint: detailEndpoint });
             const response = await axios.get<DetailedProposalResponse>(detailEndpoint, {
                 headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
             });
+            console.log('ViceDashboard: Proposal detail fetched:', response.data);
             setSelectedProposalData(response.data);
-            console.log('ViceChairDashboard: Proposal detail fetched:', response.data.proposal.id);
         } catch (err: unknown) {
-            if (axios.isAxiosError(err)) {
-                const axiosError = err as AxiosError<{ message?: string }>;
-                console.error("ViceChairDashboard: Error fetching proposal detail:", {
-                    status: axiosError.response?.status ?? 'N/A',
-                    data: axiosError.response?.data ?? 'No response data',
-                    headers: axiosError.response?.headers ?? 'No headers',
-                    message: axiosError.message ?? 'No message',
-                    request: {
-                        url: axiosError.request?.responseURL ?? detailEndpoint,
-                        headers: axiosError.config?.headers ?? 'No request headers'
-                    },
-                    code: axiosError.code ?? 'No error code'
-                });
-                if (axiosError.response?.status === 401) {
-                    setError("Authentication failed.");
-                    logout();
-                    console.log('ViceChairDashboard: 401 error in fetchProposalDetail, logging out');
-                } else if (axiosError.response?.status === 403) {
-                    setError("Forbidden to view this detail.");
-                    console.log('ViceChairDashboard: 403 Forbidden in fetchProposalDetail');
-                } else if (axiosError.response?.status === 404) {
-                    setError("Proposal not found.");
-                    console.log('ViceChairDashboard: 404 Proposal not found');
-                } else if (axiosError.response?.status === 500) {
-                    setError("Server error occurred while fetching proposal details. Please try again later.");
-                    console.log('ViceChairDashboard: 500 Server Error in fetchProposalDetail');
-                } else {
-                    setError(axiosError.response?.data?.message || axiosError.message || 'Failed to fetch detail');
-                    console.log('ViceChairDashboard: Detail fetch error:', axiosError.message);
-                }
+            console.error("ViceDashboard: Error fetching proposal detail:", err);
+            const axiosError = err as AxiosError;
+            let errorMessage = 'Failed to fetch proposal details';
+            if (axiosError.response?.status === 401) {
+                errorMessage = "Authentication failed.";
+                logout();
+            } else if (axiosError.response?.status === 403) {
+                errorMessage = "Forbidden to view this proposal.";
+            } else if (axiosError.response?.status === 404) {
+                errorMessage = `Proposal with ID ${proposalId} not found.`;
             } else {
-                console.error("ViceChairDashboard: Unexpected error fetching proposal detail:", {
-                    error: err,
-                    message: err instanceof Error ? err.message : 'Unknown error',
-                    stack: err instanceof Error ? err.stack : 'No stack trace'
-                });
-                setError("An unexpected error occurred while fetching proposal details. Please try again later.");
+                errorMessage = (axiosError.response?.data as any)?.message || axiosError.message || 'Failed to fetch proposal details';
             }
+            setError(errorMessage);
             setSelectedProposalData(null);
         } finally {
             setIsPopupLoading(false);
@@ -355,8 +325,8 @@ const ViceChairDashboard: React.FC = () => {
     // Map List Item to UnifiedProposal
     const mapListItemToUnifiedProposal = (p: ProposalListItem): UnifiedProposal => {
         const calculatedCost = (p.fund_uni ?? 0) + (p.fund_registration ?? 0) + (p.fund_sponsor ?? 0) + (p.fund_others ?? 0);
-        const placeholderEmail = `user${p.user_id}@example.com`;
-        const placeholderName = `User ID: ${p.user_id}`;
+        const placeholderEmail = p.faculty?.email || `user${p.user_id}@example.com`;
+        const placeholderName = p.faculty?.name || `User ID: ${p.user_id}`;
         const submissionTs = p.created_at || '';
 
         const tags: string[] = [];
@@ -371,7 +341,7 @@ const ViceChairDashboard: React.FC = () => {
             title: p.title || 'Untitled Proposal',
             description: p.description || '',
             category: p.category || 'Uncategorized',
-            status: p.status,
+            status: p.status === 'completed' ? 'Approved' : p.status as 'Pending' | 'Rejected' | 'Review',
             date: p.start || '',
             eventStartDate: p.start || '',
             eventEndDate: p.end || '',
@@ -386,21 +356,35 @@ const ViceChairDashboard: React.FC = () => {
             cost: calculatedCost,
             estimatedBudget: calculatedCost,
             detailedBudget: [],
-            fundingDetails: { universityFund: p.fund_uni, registrationFund: p.fund_registration, sponsorshipFund: p.fund_sponsor, otherSourcesFund: p.fund_others },
+            fundingDetails: {
+                universityFund: p.fund_uni,
+                registrationFund: p.fund_registration,
+                sponsorshipFund: p.fund_sponsor,
+                otherSourcesFund: p.fund_others
+            },
             sponsorshipDetails: [],
             tags: tags,
             pastEvents: p.past || '',
             relevantDetails: p.other || '',
-            designation: '',
+            designation: p.faculty?.designation || '',
             durationEvent: '',
             organizingDepartment: p.department_name || '',
             awaiting: p.awaiting,
             messages: [],
-            rejectionMessage: ''
+            rejectionMessage: '',
+            chief: null,
+            user: p.faculty ? {
+                name: p.faculty.name,
+                department: p.faculty.dept_id,
+                email: p.faculty.email,
+                role: p.faculty.role,
+                designation: p.faculty.designation,
+                dept_id: p.faculty.dept_id
+            } : null
         };
     };
 
-    // Map UnifiedProposal to Simplified Proposal
+    // Map UnifiedProposal to Simplified Proposal for child components
     const mapUnifiedToSimplifiedProposal = (p: UnifiedProposal): Proposal => ({
         id: p.id,
         title: p.title,
@@ -408,17 +392,13 @@ const ViceChairDashboard: React.FC = () => {
         date: p.date,
         organizer: p.organizer,
         convenerName: p.convenerName,
-        convenerEmail: p.convenerEmail,
-        submissionTimestamp: p.submissionTimestamp,
-        designation: p.designation,
-        tags: p.tags,
         awaiting: p.awaiting
     });
 
     // Map Detailed Response to UnifiedProposal
     const mapDetailResponseToUnifiedProposal = (detailData: DetailedProposalResponse): UnifiedProposal | null => {
         if (!detailData || !detailData.proposal) {
-            console.error("ViceChairDashboard: mapDetailResponseToUnifiedProposal received invalid detailData:", detailData);
+            console.error("ViceDashboard: mapDetailResponseToUnifiedProposal received invalid detailData:", detailData);
             return null;
         }
 
@@ -426,21 +406,21 @@ const ViceChairDashboard: React.FC = () => {
         const submitter = detailData.user;
         const chiefGuest = detailData.chief;
         const calculatedCost = (p.fund_uni ?? 0) + (p.fund_registration ?? 0) + (p.fund_sponsor ?? 0) + (p.fund_others ?? 0);
-        const convenerName = submitter?.name || `User ID: ${p.user_id}`;
-        const convenerEmail = submitter?.email || `user${p.user_id}@example.com`;
-        const designation = submitter?.designation || '';
+        const convenerName = submitter?.name || p.faculty?.name || `User ID: ${p.user_id}`;
+        const convenerEmail = submitter?.email || p.faculty?.email || `user${p.user_id}@example.com`;
+        const designation = submitter?.designation || p.faculty?.designation || '';
         const submissionTs = p.created_at || '';
 
         let rejectionMsg = '';
         detailData.messages?.forEach(msg => {
-            if (p.status === 'Rejected' && !rejectionMsg) rejectionMsg = msg.message;
+            if (p.status === 'rejected' && !rejectionMsg) rejectionMsg = msg.message;
         });
 
         const tags: string[] = [];
         const lowerStatus = p.status.toLowerCase();
         if (lowerStatus === 'completed') tags.push('Done');
         if (lowerStatus === 'rejected') tags.push('Rejected');
-        if (lowerStatus === 'pending' && p.awaiting === 'vice') tags.push('Awaiting Action');
+        if (lowerStatus === 'pending' && p.awaiting === 'vice_chair') tags.push('Awaiting Action');
         if (lowerStatus === 'review') tags.push('Review');
 
         return {
@@ -448,7 +428,7 @@ const ViceChairDashboard: React.FC = () => {
             title: p.title || 'Untitled Proposal',
             description: p.description || '',
             category: p.category || 'Uncategorized',
-            status: p.status,
+            status: p.status === 'completed' ? 'Approved' : p.status as 'Pending' | 'Rejected' | 'Review',
             date: p.start || '',
             eventStartDate: p.start || '',
             eventEndDate: p.end || '',
@@ -456,7 +436,7 @@ const ViceChairDashboard: React.FC = () => {
             eventDate: p.start || '',
             eventDescription: p.description || '',
             eventTitle: p.title || 'Untitled Proposal',
-            organizer: detailData.department_name || submitter?.name || `User ID: ${p.user_id}`,
+            organizer: detailData.department_name || convenerName,
             convenerName: convenerName,
             convenerEmail: convenerEmail,
             email: convenerEmail,
@@ -466,7 +446,12 @@ const ViceChairDashboard: React.FC = () => {
             organizingDepartment: detailData.department_name || '',
             detailedBudget: detailData.items || [],
             durationEvent: '',
-            fundingDetails: { universityFund: p.fund_uni, registrationFund: p.fund_registration, sponsorshipFund: p.fund_sponsor, otherSourcesFund: p.fund_others },
+            fundingDetails: {
+                universityFund: p.fund_uni,
+                registrationFund: p.fund_registration,
+                sponsorshipFund: p.fund_sponsor,
+                otherSourcesFund: p.fund_others
+            },
             sponsorshipDetails: detailData.sponsors || [],
             tags: tags,
             chiefGuestName: chiefGuest?.name || '',
@@ -474,20 +459,28 @@ const ViceChairDashboard: React.FC = () => {
             pastEvents: p.past || '',
             relevantDetails: p.other || '',
             rejectionMessage: rejectionMsg,
-            messages: detailData.messages,
+            messages: detailData.messages || [],
             chief: detailData.chief,
-            user: detailData.user,
+            user: detailData.user || (p.faculty ? {
+                name: p.faculty.name,
+                department: p.faculty.dept_id,
+                email: p.faculty.email,
+                role: p.faculty.role,
+                designation: p.faculty.designation,
+                dept_id: p.faculty.dept_id
+            } : null),
             awaiting: p.awaiting
         };
     };
 
     // Event Handlers
     const handleProposalClick = useCallback((proposal: Proposal) => {
+        console.log('ViceDashboard: Proposal clicked:', proposal);
         const proposalIdNum = parseInt(proposal.id, 10);
         if (!isNaN(proposalIdNum)) {
             fetchProposalDetail(proposalIdNum);
         } else {
-            console.error("ViceChairDashboard: Invalid numeric ID parsed from proposal:", proposal.id);
+            console.error("ViceDashboard: Invalid numeric ID parsed from proposal:", proposal.id);
             setError("Could not load details for the selected proposal.");
         }
     }, [fetchProposalDetail]);
@@ -501,14 +494,14 @@ const ViceChairDashboard: React.FC = () => {
     }
 
     if (user?.role !== 'vice_chair' && !loading) {
-        return <div className="alert alert-error shadow-lg m-4"><div><span>Access Denied: This dashboard is for Vice Chairpersons only. Current role: {user?.role || 'none'}</span></div></div>;
+        return <div className="alert alert-error shadow-lg m-4"><div><span>Access Denied: This dashboard is for Associate Chairpersons only. Current role: {user?.role || 'none'}</span></div></div>;
     }
 
     if (!user && !loading) {
         return <div className="alert alert-warning shadow-lg m-4"><div><span>Please log in to view the dashboard.</span></div></div>;
     }
 
-    if (error && !isPopupLoading) {
+    if (error && !isPopupLoading && !selectedProposalData) {
         return <div className="alert alert-error shadow-lg m-4"><div><span>Error: {error}</span></div></div>;
     }
 
@@ -518,9 +511,9 @@ const ViceChairDashboard: React.FC = () => {
     const proposalForPopup: UnifiedProposal | null = selectedProposalData ? mapDetailResponseToUnifiedProposal(selectedProposalData) : null;
 
     return (
-        <div className="vicechair-dashboard p-4 md:p-6 space-y-6 bg-white text-black min-h-screen">
+        <div className="vice-dashboard p-4 md:p-6 space-y-6 bg-white text-black min-h-screen">
             <h1 className="text-2xl md:text-3xl font-bold text-slate-800 mb-4">
-                Vice Chairperson Dashboard
+                Associate Chairperson Dashboard
             </h1>
 
             {!loading && !error && <Stats {...stats} />}
@@ -542,7 +535,11 @@ const ViceChairDashboard: React.FC = () => {
                 <CalendarView proposals={unifiedProposals} />
             </div>
 
-            {proposalForPopup && (
+            {isPopupLoading ? (
+                <div className="fixed inset-0 bg-black bg-opacity-30 flex justify-center items-center z-60">
+                    <span className="loading loading-lg loading-spinner text-white"></span>
+                </div>
+            ) : proposalForPopup ? (
                 <Popup
                     selectedProposal={proposalForPopup}
                     closePopup={closePopup}
@@ -551,15 +548,13 @@ const ViceChairDashboard: React.FC = () => {
                     apiBaseUrl={API_BASE_URL}
                     userRole={user?.role || ''}
                 />
-            )}
-
-            {isPopupLoading && (
-                <div className="fixed inset-0 bg-black bg-opacity-30 flex justify-center items-center z-60">
-                    <span className="loading loading-lg loading-spinner text-white"></span>
+            ) : error ? (
+                <div className="alert alert-error shadow-lg m-4">
+                    <div><span>Error: {error}</span></div>
                 </div>
-            )}
+            ) : null}
         </div>
     );
 };
 
-export default ViceChairDashboard;
+export default ViceDashboard;

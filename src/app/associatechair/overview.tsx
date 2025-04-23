@@ -1,4 +1,3 @@
-// overview.tsx
 import React from 'react';
 
 interface Proposal {
@@ -6,8 +5,9 @@ interface Proposal {
     title: string;
     organizer: string;
     date: string;
-    status: string;
+    status: 'Approved' | 'Pending' | 'Rejected' | 'Review';
     convenerName: string;
+    awaiting?: string | null;
 }
 
 interface ProposalOverviewTableProps {
@@ -15,20 +15,31 @@ interface ProposalOverviewTableProps {
     handleProposalClick: (proposal: Proposal) => void;
 }
 
+// Format awaiting role (e.g., 'vice_chair' → 'Associate Chair')
+const formatAwaiting = (awaiting: string | null | undefined): string => {
+    if (!awaiting) return 'None';
+    if (awaiting === 'vice_chair') return 'Associate Chair';
+    return awaiting
+        .split('_')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(' ');
+};
+
 const ProposalOverviewTable: React.FC<ProposalOverviewTableProps> = ({ eventProposals, handleProposalClick }) => {
     return (
         <div className="card shadow-md rounded-lg bg-white">
             <div className="card-body">
-                <h2 className="card-title text-lg font-bold text-gray-700 mb-4">Proposal Overview</h2>
+                <h2 className="card-title text-lg font-bold text-gray-700 mb-4">Associate Chair Proposal Overview</h2>
                 <div className="overflow-x-auto">
                     <table className="table table-compact w-full">
                         <thead>
                             <tr>
                                 <th>Title</th>
-                                <th>Organizing department</th>
+                                <th>Organizing Department</th>
                                 <th>Convener</th>
                                 <th>Date</th>
                                 <th>Status</th>
+                                <th>Awaiting</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -44,11 +55,12 @@ const ProposalOverviewTable: React.FC<ProposalOverviewTableProps> = ({ eventProp
                                                 {proposal.status}
                                             </div>
                                         </td>
+                                        <td>{formatAwaiting(proposal.awaiting)}</td>
                                     </tr>
                                 ))
                             ) : (
                                 <tr>
-                                    <td colSpan={5} className="text-center italic">No proposals submitted yet.</td>
+                                    <td colSpan={6} className="text-center italic">No proposals submitted yet.</td>
                                 </tr>
                             )}
                         </tbody>

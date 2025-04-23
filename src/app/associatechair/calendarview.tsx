@@ -1,6 +1,5 @@
 "use client";
-
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -9,7 +8,6 @@ import listPlugin from '@fullcalendar/list';
 import { EventInput } from '@fullcalendar/core';
 import Popup from './popup';
 import { UnifiedProposal } from './ViceDashboard';
-import { useAuth } from '@/context/AuthContext';
 
 const LoadingComponent = () => (
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
@@ -29,19 +27,18 @@ const NoProposalsComponent = () => (
     </div>
 );
 
+interface Proposal extends UnifiedProposal {}
+
 interface CalendarViewProps {
-    proposals: UnifiedProposal[];
+    proposals: Proposal[];
 }
 
-const API_BASE_URL = "https://pmspreview-htfbhkdnffcpf5dz.centralindia-01.azurewebsites.net";
-
 const CalendarView: React.FC<CalendarViewProps> = ({ proposals }) => {
-    const [eventProposals, setEventProposals] = useState<UnifiedProposal[]>(proposals);
+    const [eventProposals, setEventProposals] = useState<Proposal[]>(proposals);
     const [loading] = useState(false);
-    const [selectedEvent, setSelectedEvent] = useState<UnifiedProposal | null>(null);
-    const { token, user } = useAuth();
+    const [selectedEvent, setSelectedEvent] = useState<Proposal | null>(null);
 
-    useEffect(() => {
+    React.useEffect(() => {
         setEventProposals(proposals);
     }, [proposals]);
 
@@ -64,16 +61,11 @@ const CalendarView: React.FC<CalendarViewProps> = ({ proposals }) => {
     });
 
     const handleEventClick = (clickInfo: any) => {
-        setSelectedEvent(clickInfo.event.extendedProps as UnifiedProposal);
+        setSelectedEvent(clickInfo.event.extendedProps as Proposal);
     };
 
     const closePopup = () => {
         setSelectedEvent(null);
-    };
-
-    const handleProposalUpdated = () => {
-        // Optionally refresh proposals or update state
-        closePopup();
     };
 
     if (loading) {
@@ -113,10 +105,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({ proposals }) => {
                 <Popup
                     selectedProposal={selectedEvent}
                     closePopup={closePopup}
-                    onProposalUpdated={handleProposalUpdated}
-                    authToken={token}
-                    apiBaseUrl={API_BASE_URL}
-                    userRole={user?.role || ''}
+                    onProposalUpdated={() => { }}
+                    authToken={null}
+                    apiBaseUrl=""
+                    userRole=""
                 />
             )}
         </div>

@@ -1,4 +1,3 @@
-// overview.tsx
 import React from 'react';
 
 interface Proposal {
@@ -6,14 +5,24 @@ interface Proposal {
     title: string;
     organizer: string;
     date: string;
-    status: string;
+    status: 'Approved' | 'Pending' | 'Rejected' | 'Review'; // Changed from string
     convenerName: string;
+    awaiting?: string | null;
 }
 
 interface ProposalOverviewTableProps {
     eventProposals: Proposal[];
     handleProposalClick: (proposal: Proposal) => void;
 }
+
+// Format awaiting role (e.g., 'vice_chair' → 'Vice Chair')
+const formatAwaiting = (awaiting: string | null | undefined): string => {
+    if (!awaiting) return 'None';
+    return awaiting
+        .split('_')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(' ');
+};
 
 const ProposalOverviewTable: React.FC<ProposalOverviewTableProps> = ({ eventProposals, handleProposalClick }) => {
     return (
@@ -29,6 +38,7 @@ const ProposalOverviewTable: React.FC<ProposalOverviewTableProps> = ({ eventProp
                                 <th>Convener</th>
                                 <th>Date</th>
                                 <th>Status</th>
+                                <th>Awaiting</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -44,11 +54,12 @@ const ProposalOverviewTable: React.FC<ProposalOverviewTableProps> = ({ eventProp
                                                 {proposal.status}
                                             </div>
                                         </td>
+                                        <td>{formatAwaiting(proposal.awaiting)}</td>
                                     </tr>
                                 ))
                             ) : (
                                 <tr>
-                                    <td colSpan={5} className="text-center italic">No proposals submitted yet.</td>
+                                    <td colSpan={6} className="text-center italic">No proposals submitted yet.</td>
                                 </tr>
                             )}
                         </tbody>

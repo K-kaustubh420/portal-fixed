@@ -1,11 +1,6 @@
-"use client";
-
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
-import { format, isValid } from 'date-fns';
-import { X } from 'lucide-react';
 import axios, { AxiosError } from 'axios';
-import { UnifiedProposal, Item, Sponsor, Message } from './ViceDashboard';
+import { UnifiedProposal, Message } from './ViceDashboard';
 
 interface PopupProps {
     selectedProposal: UnifiedProposal;
@@ -16,251 +11,123 @@ interface PopupProps {
     userRole: string;
 }
 
-const Popup: React.FC<PopupProps> = ({
-    selectedProposal,
-    closePopup,
-    onProposalUpdated,
-    authToken,
-    apiBaseUrl,
-    userRole
-}) => {
-    const [clarificationInput, setClarificationInput] = useState('');
-    const [isClarifying, setIsClarifying] = useState(false);
-    const [isRejecting, setIsRejecting] = useState(false);
-    const [isApproving, setIsApproving] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
-    const [errorMessage, setErrorMessage] = useState<string | null>(null);
+const Popup: React.FC<PopupProps> = ({ selectedProposal, closePopup, onProposalUpdated, authToken, apiBaseUrl, userRole }) => {
+    const [actionError, setActionError] = useState<string | null>(null);
+    const [actionLoading, setActionLoading] = useState<boolean>(false);
+    const [comment, setComment] = useState<string>('');
 
-    const handleRejectClick = () => {
-        setIsRejecting(true); setIsClarifying(false); setIsApproving(false); setClarificationInput('');
-    };
-    const handleClarificationClick = () => {
-        setIsClarifying(true); setIsRejecting(false); setIsApproving(false); setClarificationInput('');
-    };
-    const handleApproveClick = () => {
-        setIsApproving(true); setIsClarifying(false); setIsRejecting(false); setClarificationInput('');
-    };
-    const cancelActions = () => {
-        setIsRejecting(false); setIsClarifying(false); setIsApproving(false); setClarificationInput(''); setErrorMessage(null);
-    };
-
-    // Approve Proposal
-    const handleApprove = async () => {
-        if (!authToken) { setErrorMessage("Authentication token missing."); return; }
-        const approveEndpoint = `${apiBaseUrl}/api/chair/proposals/${selectedProposal.id}`;
-        if (!window.confirm('Are you sure you want to approve this proposal?')) return;
+    const handleAction = async (action: 'approve' | 'reject') => {
+        if (!authToken || userRole !== 'vice_chair') {
+            setActionError('Access denied. Only Associate Chairpersons can perform this action.');
+            return;
+        }
+        setActionLoading(true);
+        setActionError(null);
         try {
-            setIsLoading(true); setErrorMessage(null);
+            const endpoint = `${apiBaseUrl}/api/vice/proposal/${selectedProposal.id}/${action}`;
             await axios.post(
-                approveEndpoint,
-                {},
-                { headers: { Authorization: `Bearer ${authToken}`, Accept: 'application/json', 'Content-Type': 'application/json' } }
-            );
-            onProposalUpdated(); closePopup();
-        } catch (error: any) {
-            console.error("Approve error:", error);
-            const axiosError = error as AxiosError;
-            setErrorMessage((axiosError.response?.data as any)?.message || axiosError.message || 'Failed to approve proposal');
-        } finally { setIsLoading(false); }
-    };
-
-    // Request Clarification
-    const handleRequestClarification = async () => {
-        if (!authToken) { setErrorMessage("Authentication token missing."); return; }
-        if (!clarificationInput.trim()) { setErrorMessage("Please enter comments for clarification."); return; }
-        const clarifyEndpoint = `${apiBaseUrl}/api/chair/proposals/${selectedProposal.id}`;
-        try {
-            setIsLoading(true); setErrorMessage(null);
-            await axios.put(
-                clarifyEndpoint,
-                { message: clarificationInput },
-                { headers: { Authorization: `Bearer ${authToken}`, Accept: 'application/json', 'Content-Type': 'application/json' } }
-            );
-            onProposalUpdated(); closePopup();
-        } catch (error: any) {
-            console.error("Clarification request error:", error);
-            const axiosError = error as AxiosError;
-            setErrorMessage((axiosError.response?.data as any)?.message || axiosError.message || 'Failed to request clarification');
-        } finally { setIsLoading(false); }
-    };
-
-    // Reject Proposal
-    const handleReject = async () => {
-        if (!authToken) { setErrorMessage("Authentication token missing."); return; }
-        const rejectEndpoint = `${apiBaseUrl}/api/chair/proposals/${selectedProposal.id}`;
-        if (!window.confirm('Are you sure you want to reject this proposal? This action might be irreversible.')) return;
-        try {
-            setIsLoading(true); setErrorMessage(null);
-            await axios.delete(
-                rejectEndpoint,
+                endpoint,
+                { comment },
                 { headers: { Authorization: `Bearer ${authToken}`, Accept: 'application/json' } }
             );
-            onProposalUpdated(); closePopup();
-        } catch (error: any) {
-            console.error("Reject error:", error);
-            const axiosError = error as AxiosError;
-            setErrorMessage((axiosError.response?.data as any)?.message || axiosError.message || 'Failed to reject proposal');
-        } finally { setIsLoading(false); }
-    };
-
-    // Format Date Safely
-    const formatDateSafe = (dateString: string | null | undefined, formatString: string = 'dd-MM-yyyy hh:mm a'): string => {
-        if (!dateString) return 'N/A';
-        try { const dateObj = new Date(dateString); if (isValid(dateObj)) return format(dateObj, formatString); }
-        catch (e) { /* ignore */ } return 'Invalid Date';
-    };
-
-    // Capitalize Awaiting Role
-    const formatAwaiting = (awaiting: string | null): string => {
-        if (!awaiting) return 'None';
-        return awaiting.charAt(0).toUpperCase() + awaiting.slice(1).toLowerCase();
+            onProposalUpdated();
+        } catch (err: unknown) {
+            const axiosError = err as AxiosError;
+            setActionError(
+                axiosError.response?.status === 401
+                    ? 'Authentication failed.'
+                    : axiosError.response?.status === 403
+                    ? 'Forbidden action.'
+                    : (axiosError.response?.data as any)?.message || 'Failed to process action'
+            );
+        } finally {
+            setActionLoading(false);
+        }
     };
 
     return (
-        <motion.div
-            className="fixed inset-0 z-50 shadow-md shadow-blue-200 flex items-center justify-center bg-gray-800 bg-opacity-75"
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}
-        >
-            <motion.div
-                className="bg-white rounded-lg border-t-4 border-blue-800 shadow-lg w-full max-w-3xl mx-4 max-h-[90vh] flex flex-col"
-                initial={{ y: -50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 50, opacity: 0 }} transition={{ duration: 0.3, type: "spring", stiffness: 120 }}
-            >
-                <div className="flex justify-between items-center p-4 md:p-6 border-b border-gray-200">
-                    <h2 className="text-xl font-bold text-blue-900">Proposal Details</h2>
-                    <button onClick={closePopup} className="text-gray-500 hover:text-red-600" aria-label="Close pop-up"><X size={24} /></button>
-                </div>
-
-                <div className="p-4 md:p-6 space-y-4 overflow-y-auto flex-grow">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
-                        <div><p className="text-sm font-medium text-gray-500">ID:</p><p className="text-sm text-gray-900">{selectedProposal.id || 'N/A'}</p></div>
-                        <div><p className="text-sm font-medium text-gray-500">Title:</p><p className="text-sm text-gray-900">{selectedProposal.title || 'N/A'}</p></div>
-                        <div><p className="text-sm font-medium text-gray-500">Department:</p><p className="text-sm text-gray-900">{selectedProposal.organizingDepartment || 'N/A'}</p></div>
-                        <div><p className="text-sm font-medium text-gray-500">Category:</p><p className="text-sm text-gray-900">{selectedProposal.category || 'N/A'}</p></div>
-                        <div><p className="text-sm font-medium text-gray-500">Convener:</p><p className="text-sm text-gray-900">{selectedProposal.convenerName || 'N/A'}</p></div>
-                        <div><p className="text-sm font-medium text-gray-500">Convener Email:</p><p className="text-sm text-gray-900">{selectedProposal.convenerEmail || 'N/A'}</p></div>
-                        {selectedProposal.designation && (<div><p className="text-sm font-medium text-gray-500">Convener Designation:</p><p className="text-sm text-gray-900">{selectedProposal.designation}</p></div>)}
-                        <div><p className="text-sm font-medium text-gray-500">Status:</p><p className={`text-sm font-medium ${selectedProposal.status === 'Completed' ? 'text-green-600' : selectedProposal.status === 'Pending' ? 'text-yellow-600' : selectedProposal.status === 'Rejected' ? 'text-red-600' : 'text-blue-600'}`}>{selectedProposal.status || 'N/A'}</p></div>
-                        <div><p className="text-sm font-medium text-gray-500">Awaiting Action By:</p><p className="text-sm text-gray-900">{formatAwaiting(selectedProposal.awaiting)}</p></div>
-                        <div><p className="text-sm font-medium text-gray-500">Event Start Date:</p><p className="text-sm text-gray-900">{formatDateSafe(selectedProposal.eventStartDate, 'PPP p')}</p></div>
-                        <div><p className="text-sm font-medium text-gray-500">Event End Date:</p><p className="text-sm text-gray-900">{formatDateSafe(selectedProposal.eventEndDate, 'PPP p')}</p></div>
-                        {selectedProposal.durationEvent && (<div><p className="text-sm font-medium text-gray-500">Duration:</p><p className="text-sm text-gray-900">{selectedProposal.durationEvent}</p></div>)}
-                        {selectedProposal.location && (<div><p className="text-sm font-medium text-gray-500">Location:</p><p className="text-sm text-gray-900">{selectedProposal.location}</p></div>)}
-                        <div><p className="text-sm font-medium text-gray-500">Estimated Budget:</p><p className="text-sm text-gray-900">{selectedProposal.cost?.toLocaleString('en-IN', { style: 'currency', currency: 'INR' }) ?? 'N/A'}</p></div>
-                        {selectedProposal.chiefGuestName && (<div><p className="text-sm font-medium text-gray-500">Chief Guest:</p><p className="text-sm text-gray-900">{selectedProposal.chiefGuestName} ({selectedProposal.chiefGuestDesignation || 'N/A'})</p></div>)}
-                        <div className="sm:col-span-2"><p className="text-sm font-medium text-gray-500">Description:</p><p className="text-sm text-gray-900 whitespace-pre-wrap">{selectedProposal.description || 'N/A'}</p></div>
-                        {selectedProposal.rejectionMessage && selectedProposal.status === 'Rejected' && (
-                            <div className="sm:col-span-2"><p className="text-sm font-medium text-gray-500">Rejection Reason:</p><p className="text-sm text-red-600">{selectedProposal.rejectionMessage}</p></div>
-                        )}
-                        {/* // Uncomment if backend adds 'Review' status and reviewMessage is added to UnifiedProposal
-                        {selectedProposal.reviewMessage && selectedProposal.status === 'Review' && (
-                            <div className="sm:col-span-2"><p className="text-sm font-medium text-gray-500">Review Comments:</p><p className="text-sm text-blue-600">{selectedProposal.reviewMessage}</p></div>
-                        )} */}
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+                <h2 className="text-xl font-bold text-gray-800 mb-4">{selectedProposal.title}</h2>
+                <div className="space-y-4">
+                    <div>
+                        <strong>Status:</strong>
+                        <span className={`ml-2 badge badge-sm badge-${selectedProposal.status === 'Approved' ? 'success' : selectedProposal.status === 'Pending' ? 'warning' : selectedProposal.status === 'Rejected' ? 'error' : 'info'}`}>
+                            {selectedProposal.status}
+                        </span>
                     </div>
-
-                    {(selectedProposal.detailedBudget && selectedProposal.detailedBudget.length > 0) && (
-                        <div className="mt-4 p-3 bg-blue-50 rounded-md border border-blue-200">
-                            <p className="text-sm font-semibold text-blue-800">Budget Items:</p>
-                            <ul className="list-disc list-inside text-gray-600 pl-2 text-xs space-y-1 mt-1">
-                                {selectedProposal.detailedBudget.map((item: Item) => (
-                                    <li key={item.id}>
-                                        {item.category} - {item.sub_category}: {item.quantity} x {item.cost?.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })} = {item.amount?.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    )}
-
-                    {(selectedProposal.sponsorshipDetails && selectedProposal.sponsorshipDetails.length > 0) && (
-                        <div className="mt-4 p-3 bg-blue-50 rounded-md border border-blue-200">
-                            <p className="text-sm font-semibold text-blue-800">Sponsors:</p>
-                            <ul className="list-disc list-inside text-gray-600 pl-2 text-xs space-y-1 mt-1">
-                                {selectedProposal.sponsorshipDetails.map((sponsor: Sponsor) => (
-                                    <li key={sponsor.id}>
-                                        {sponsor.category} ({sponsor.mode}): {sponsor.amount?.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })} | Reward: {sponsor.reward || 'N/A'} | About: {sponsor.about || 'N/A'}
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    )}
-
-                    {(selectedProposal.messages && selectedProposal.messages.length > 0) && (
-                        <div className="mt-4 p-3 bg-gray-50 rounded-md border border-gray-200">
-                            <p className="text-sm font-semibold text-gray-800">Communication Log:</p>
-                            <ul className="space-y-2 text-xs text-gray-600 mt-2">
-                                {selectedProposal.messages.slice().reverse().map((msg: Message) => (
-                                    <li key={msg.id} className="border-b border-gray-100 pb-1">
-                                        <span className="font-medium text-gray-700">User {msg.user_id}</span> ({formatDateSafe(msg.created_at)}):<br/> <span className='pl-2'>{msg.message}</span>
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    )}
-
-                    <div className="mt-4 text-xs text-gray-500 text-right">
-                        Submitted On: {formatDateSafe(selectedProposal.submissionTimestamp)}
+                    <div>
+                        <strong>Organizer:</strong> {selectedProposal.organizer}
                     </div>
-                </div>
-
-                <div className="p-4 md:p-6 border-t border-gray-200 bg-gray-50 rounded-b-lg">
-                    {errorMessage && (<div className="alert alert-error text-xs p-2 mb-3"><div><span>{errorMessage}</span></div></div>)}
-
-                    {selectedProposal.status === 'Pending' && selectedProposal.awaiting === userRole && !isRejecting && !isClarifying && !isApproving && (
-                        <div className="flex flex-wrap gap-3 justify-end">
-                            <button onClick={handleApproveClick} className="btn btn-sm btn-success" disabled={isLoading}>Approve</button>
-                            <button onClick={handleClarificationClick} className="btn btn-sm btn-warning" disabled={isLoading}>Request Clarification</button>
-                            <button onClick={handleRejectClick} className="btn btn-sm btn-error" disabled={isLoading}>Reject</button>
-                        </div>
-                    )}
-                    {/* // Uncomment if backend adds 'Review' status
-                    {(selectedProposal.status === 'Pending' || selectedProposal.status === 'Review') && selectedProposal.awaiting === userRole && !isRejecting && !isClarifying && !isApproving && (
-                        <div className="flex flex-wrap gap-3 justify-end">
-                            <button onClick={handleApproveClick} className="btn btn-sm btn-success" disabled={isLoading}>Approve</button>
-                            <button onClick={handleClarificationClick} className="btn btn-sm btn-warning" disabled={isLoading}>Request Clarification</button>
-                            <button onClick={handleRejectClick} className="btn btn-sm btn-error" disabled={isLoading}>Reject</button>
-                        </div>
-                    )} */}
-
-                    {isApproving && (
-                        <div className="mt-4 space-y-3 text-center">
-                            <p className="text-lg font-semibold text-green-700">Confirm Approval</p>
-                            <p className="text-sm text-gray-600">Are you sure you want to approve this proposal?</p>
-                            <div className="flex gap-3 justify-center pt-2">
-                                <button onClick={cancelActions} className="btn btn-sm btn-ghost" disabled={isLoading}>Cancel</button>
-                                <button onClick={handleApprove} className="btn btn-sm btn-success" disabled={isLoading}>
-                                    {isLoading ? <span className="loading loading-spinner loading-xs"></span> : 'Confirm Approve'}
-                                </button>
-                            </div>
-                        </div>
-                    )}
-
-                    {isRejecting && (
-                        <div className="mt-4 space-y-3 text-center">
-                            <p className="text-lg font-semibold text-red-700">Confirm Rejection</p>
-                            <p className="text-sm text-gray-600">Are you sure you want to reject this proposal?</p>
-                            <div className="flex gap-3 justify-center pt-2">
-                                <button onClick={cancelActions} className="btn btn-sm btn-ghost" disabled={isLoading}>Cancel</button>
-                                <button onClick={handleReject} className="btn btn-sm btn-error" disabled={isLoading}>
-                                    {isLoading ? <span className="loading loading-spinner loading-xs"></span> : 'Confirm Reject'}
-                                </button>
-                            </div>
-                        </div>
-                    )}
-
-                    {isClarifying && (
-                        <div className="mt-4 space-y-3">
-                            <label htmlFor="clarificationMessage" className="block text-sm font-semibold text-gray-700">Comments for Clarification Request:</label>
-                            <textarea id="clarificationMessage" rows={3} className="textarea textarea-bordered w-full text-sm" placeholder="Enter clarification questions here..." value={clarificationInput} onChange={(e) => setClarificationInput(e.target.value)} disabled={isLoading} required />
-                            <div className="flex gap-3 justify-end">
-                                <button onClick={cancelActions} className="btn btn-sm btn-ghost" disabled={isLoading}>Cancel</button>
-                                <button onClick={handleRequestClarification} className="btn btn-sm btn-warning" disabled={isLoading || !clarificationInput.trim()}>
-                                    {isLoading ? <span className="loading loading-spinner loading-xs"></span> : 'Submit Request'}
-                                </button>
-                            </div>
+                    <div>
+                        <strong>Convener:</strong> {selectedProposal.convenerName}
+                    </div>
+                    <div>
+                        <strong>Date:</strong> {new Date(selectedProposal.date).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}
+                    </div>
+                    <div>
+                        <strong>Awaiting:</strong> {selectedProposal.awaiting ? selectedProposal.awaiting === 'vice_chair' ? 'Associate Chair' : selectedProposal.awaiting : 'None'}
+                    </div>
+                    <div>
+                        <strong>Description:</strong> {selectedProposal.description || 'No description provided.'}
+                    </div>
+                    <div>
+                        <strong>Cost:</strong> ${selectedProposal.cost.toLocaleString()}
+                    </div>
+                    {selectedProposal.messages && selectedProposal.messages.length > 0 && (
+                        <div>
+                            <strong>Communication Log:</strong>
+                            <ul className="list-disc pl-5 mt-2">
+                                {selectedProposal.messages.map((msg: Message) => (
+                                    <li key={msg.id}>
+                                        User {msg.user_id} ({new Date(msg.created_at || '').toLocaleDateString()}): {msg.message}
+                                    </li>
+                                ))}
+                            </ul>
                         </div>
                     )}
                 </div>
-            </motion.div>
-        </motion.div>
+
+                {userRole === 'vice_chair' && selectedProposal.status === 'Pending' && (
+                    <div className="mt-4">
+                        <textarea
+                            className="textarea textarea-bordered w-full"
+                            placeholder="Add a comment (optional)"
+                            value={comment}
+                            onChange={(e) => setComment(e.target.value)}
+                        ></textarea>
+                        <div className="flex justify-end space-x-2 mt-2">
+                            <button
+                                className="btn btn-success"
+                                onClick={() => handleAction('approve')}
+                                disabled={actionLoading}
+                            >
+                                Approve
+                            </button>
+                            <button
+                                className="btn btn-error"
+                                onClick={() => handleAction('reject')}
+                                disabled={actionLoading}
+                            >
+                                Reject
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {actionError && (
+                    <div className="alert alert-error mt-4">
+                        <span>{actionError}</span>
+                    </div>
+                )}
+
+                <div className="flex justify-end mt-4">
+                    <button className="btn btn-secondary" onClick={closePopup} disabled={actionLoading}>
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
     );
 };
 

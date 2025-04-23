@@ -7,6 +7,7 @@ import interactionPlugin from '@fullcalendar/interaction';
 import listPlugin from '@fullcalendar/list';
 import { EventInput } from '@fullcalendar/core';
 import Popup from './popup';
+import { UnifiedProposal } from './ChairDashboard';
 
 const LoadingComponent = () => (
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
@@ -26,48 +27,7 @@ const NoProposalsComponent = () => (
     </div>
 );
 
-interface Proposal {
-    id: string;
-    title: string;
-    organizer: string;
-    date: string;
-    status: string;
-    category: string;
-    cost: number;
-    email: string;
-    description: string;
-    location?: string;
-    convenerName: string;
-    convenerEmail: string;
-    chiefGuestName?: string;
-    chiefGuestDesignation?: string;
-    designation: string;
-    detailedBudget: { mainCategory: string; subCategory: string; totalAmount?: number }[];
-    durationEvent: string;
-    estimatedBudget: number;
-    eventDate: string;
-    eventDescription: string;
-    eventEndDate: string;
-    eventStartDate: string;
-    eventTitle: string;
-    fundingDetails?: {
-        registrationFund?: number;
-        sponsorshipFund?: number;
-        universityFund?: number;
-        otherSourcesFund?: number;
-    };
-    organizingDepartment: string;
-    pastEvents?: string[];
-    proposalStatus: string;
-    relevantDetails?: string;
-    sponsorshipDetails?: string[];
-    sponsorshipDetailsRows?: { [key: string]: string | number | boolean }[];
-    submissionTimestamp: string;
-    rejectionMessage?: string;
-    reviewMessage?: string;
-    clarificationMessage?: string;
-    tags?: string[]; // Added tags property
-}
+interface Proposal extends UnifiedProposal {}
 
 interface CalendarViewProps {
     proposals: Proposal[];
@@ -146,6 +106,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({ proposals }) => {
                     selectedProposal={selectedEvent}
                     closePopup={closePopup}
                     onProposalUpdated={() => { }}
+                    authToken={null}
+                    apiBaseUrl=""
+                    userRole=""
                 />
             )}
         </div>
