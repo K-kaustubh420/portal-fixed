@@ -1,5 +1,6 @@
 "use client";
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -7,6 +8,8 @@ import interactionPlugin from '@fullcalendar/interaction';
 import listPlugin from '@fullcalendar/list';
 import { EventInput } from '@fullcalendar/core';
 import Popup from './popup';
+import { UnifiedProposal } from './ViceDashboard';
+import { useAuth } from '@/context/AuthContext';
 
 const LoadingComponent = () => (
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
@@ -26,59 +29,19 @@ const NoProposalsComponent = () => (
     </div>
 );
 
-interface Proposal {
-    id: string;
-    title: string;
-    organizer: string;
-    date: string;
-    status: string;
-    category: string;
-    cost: number;
-    email: string;
-    description: string;
-    location?: string;
-    convenerName: string;
-    convenerEmail: string;
-    chiefGuestName?: string;
-    chiefGuestDesignation?: string;
-    designation: string;
-    detailedBudget: { mainCategory: string; subCategory: string; totalAmount?: number }[];
-    durationEvent: string;
-    estimatedBudget: number;
-    eventDate: string;
-    eventDescription: string;
-    eventEndDate: string;
-    eventStartDate: string;
-    eventTitle: string;
-    fundingDetails?: {
-        registrationFund?: number;
-        sponsorshipFund?: number;
-        universityFund?: number;
-        otherSourcesFund?: number;
-    };
-    organizingDepartment: string;
-    pastEvents?: string[];
-    proposalStatus: string;
-    relevantDetails?: string;
-    sponsorshipDetails?: string[];
-    sponsorshipDetailsRows?: { [key: string]: string | number | boolean }[];
-    submissionTimestamp: string;
-    rejectionMessage?: string;
-    reviewMessage?: string;
-    clarificationMessage?: string;
-    tags?: string[]; // Added tags property
+interface CalendarViewProps {
+    proposals: UnifiedProposal[];
 }
 
-interface CalendarViewProps {
-    proposals: Proposal[];
-}
+const API_BASE_URL = "https://pmspreview-htfbhkdnffcpf5dz.centralindia-01.azurewebsites.net";
 
 const CalendarView: React.FC<CalendarViewProps> = ({ proposals }) => {
-    const [eventProposals, setEventProposals] = useState<Proposal[]>(proposals);
+    const [eventProposals, setEventProposals] = useState<UnifiedProposal[]>(proposals);
     const [loading] = useState(false);
-    const [selectedEvent, setSelectedEvent] = useState<Proposal | null>(null);
+    const [selectedEvent, setSelectedEvent] = useState<UnifiedProposal | null>(null);
+    const { token, user } = useAuth();
 
-    React.useEffect(() => {
+    useEffect(() => {
         setEventProposals(proposals);
     }, [proposals]);
 
@@ -101,11 +64,16 @@ const CalendarView: React.FC<CalendarViewProps> = ({ proposals }) => {
     });
 
     const handleEventClick = (clickInfo: any) => {
-        setSelectedEvent(clickInfo.event.extendedProps as Proposal);
+        setSelectedEvent(clickInfo.event.extendedProps as UnifiedProposal);
     };
 
     const closePopup = () => {
         setSelectedEvent(null);
+    };
+
+    const handleProposalUpdated = () => {
+        // Optionally refresh proposals or update state
+        closePopup();
     };
 
     if (loading) {
@@ -145,7 +113,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({ proposals }) => {
                 <Popup
                     selectedProposal={selectedEvent}
                     closePopup={closePopup}
-                    onProposalUpdated={() => { }}
+                    onProposalUpdated={handleProposalUpdated}
+                    authToken={token}
+                    apiBaseUrl={API_BASE_URL}
+                    userRole={user?.role || ''}
                 />
             )}
         </div>

@@ -161,7 +161,7 @@ interface DetailedProposalResponse {
 }
 
 // API URL
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://pmspreview-htfbhkdnffcpf5dz.centralindia-01.azurewebsites.net";
+const API_BASE_URL = "https://pmspreview-htfbhkdnffcpf5dz.centralindia-01.azurewebsites.net";
 
 const ChairDashboard: React.FC = () => {
     const [proposals, setProposals] = useState<ProposalListItem[]>([]);

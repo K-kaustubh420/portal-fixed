@@ -1,52 +1,49 @@
+// page.tsx (with basic auth check - adapt to your auth system)
 "use client";
-
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation'; // Correct import
 import ViceDashboard from './ViceDashboard';
-import { useAuth } from '@/context/AuthContext';
 
 const Page = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const router = useRouter();
-  const { user } = useAuth();
 
   useEffect(() => {
+    // Replace this with your actual authentication check
     const checkAuth = async () => {
       setIsLoading(true);
       try {
+        // Example: Check for a token in local storage or make an API call
         const token = localStorage.getItem('authToken');
-        if (token && user?.role === 'vice') {
+        if (token) {
           setIsAuthenticated(true);
         } else {
-          router.push('/login');
+          router.push('/'); // Redirect to login page
         }
       } catch (error) {
         console.error("Authentication check failed:", error);
-        router.push('/login');
+       
+        router.push('/');
       } finally {
         setIsLoading(false);
       }
     };
 
     checkAuth();
-  }, [router, user]);
+  }, [router]);
 
   if (isLoading) {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        <span className="loading loading-lg loading-spinner text-primary"></span>
-      </div>
-    );
+    return <div></div>; // Or a loading spinner
   }
 
   if (!isAuthenticated) {
-    return null;
+    return null; 
   }
 
   return (
     <div className="container mx-auto py-4">
-      <ViceDashboard />
+      <ViceDashboard/>
     </div>
   );
 };
