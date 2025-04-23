@@ -110,6 +110,12 @@ const Popup: React.FC<PopupProps> = ({
         catch (e) { /* ignore */ } return 'Invalid Date';
     };
 
+    // Capitalize Awaiting Role
+    const formatAwaiting = (awaiting: string | null): string => {
+        if (!awaiting) return 'None';
+        return awaiting.charAt(0).toUpperCase() + awaiting.slice(1).toLowerCase();
+    };
+
     return (
         <motion.div
             className="fixed inset-0 z-50 shadow-md shadow-blue-200 flex items-center justify-center bg-gray-800 bg-opacity-75"
@@ -133,7 +139,8 @@ const Popup: React.FC<PopupProps> = ({
                         <div><p className="text-sm font-medium text-gray-500">Convener:</p><p className="text-sm text-gray-900">{selectedProposal.convenerName || 'N/A'}</p></div>
                         <div><p className="text-sm font-medium text-gray-500">Convener Email:</p><p className="text-sm text-gray-900">{selectedProposal.convenerEmail || 'N/A'}</p></div>
                         {selectedProposal.designation && (<div><p className="text-sm font-medium text-gray-500">Convener Designation:</p><p className="text-sm text-gray-900">{selectedProposal.designation}</p></div>)}
-                        <div><p className="text-sm font-medium text-gray-500">Status:</p><p className={`text-sm font-medium ${selectedProposal.status === 'Approved' ? 'text-green-600' : ['Pending', 'Awaiting'].includes(selectedProposal.status) ? 'text-yellow-600' : selectedProposal.status === 'Rejected' ? 'text-red-600' : selectedProposal.status === 'Review' ? 'text-blue-600' : 'text-gray-900'}`}>{selectedProposal.status || 'N/A'}</p></div>
+                        <div><p className="text-sm font-medium text-gray-500">Status:</p><p className={`text-sm font-medium ${selectedProposal.status === 'Completed' ? 'text-green-600' : selectedProposal.status === 'Pending' ? 'text-yellow-600' : selectedProposal.status === 'Rejected' ? 'text-red-600' : 'text-blue-600'}`}>{selectedProposal.status || 'N/A'}</p></div>
+                        <div><p className="text-sm font-medium text-gray-500">Awaiting Action By:</p><p className="text-sm text-gray-900">{formatAwaiting(selectedProposal.awaiting)}</p></div>
                         <div><p className="text-sm font-medium text-gray-500">Event Start Date:</p><p className="text-sm text-gray-900">{formatDateSafe(selectedProposal.eventStartDate, 'PPP p')}</p></div>
                         <div><p className="text-sm font-medium text-gray-500">Event End Date:</p><p className="text-sm text-gray-900">{formatDateSafe(selectedProposal.eventEndDate, 'PPP p')}</p></div>
                         {selectedProposal.durationEvent && (<div><p className="text-sm font-medium text-gray-500">Duration:</p><p className="text-sm text-gray-900">{selectedProposal.durationEvent}</p></div>)}
@@ -141,6 +148,13 @@ const Popup: React.FC<PopupProps> = ({
                         <div><p className="text-sm font-medium text-gray-500">Estimated Budget:</p><p className="text-sm text-gray-900">{selectedProposal.cost?.toLocaleString('en-IN', { style: 'currency', currency: 'INR' }) ?? 'N/A'}</p></div>
                         {selectedProposal.chiefGuestName && (<div><p className="text-sm font-medium text-gray-500">Chief Guest:</p><p className="text-sm text-gray-900">{selectedProposal.chiefGuestName} ({selectedProposal.chiefGuestDesignation || 'N/A'})</p></div>)}
                         <div className="sm:col-span-2"><p className="text-sm font-medium text-gray-500">Description:</p><p className="text-sm text-gray-900 whitespace-pre-wrap">{selectedProposal.description || 'N/A'}</p></div>
+                        {selectedProposal.rejectionMessage && selectedProposal.status === 'Rejected' && (
+                            <div className="sm:col-span-2"><p className="text-sm font-medium text-gray-500">Rejection Reason:</p><p className="text-sm text-red-600">{selectedProposal.rejectionMessage}</p></div>
+                        )}
+                        {/* // Uncomment if backend adds 'Review' status and reviewMessage is added to UnifiedProposal
+                        {selectedProposal.reviewMessage && selectedProposal.status === 'Review' && (
+                            <div className="sm:col-span-2"><p className="text-sm font-medium text-gray-500">Review Comments:</p><p className="text-sm text-blue-600">{selectedProposal.reviewMessage}</p></div>
+                        )} */}
                     </div>
 
                     {(selectedProposal.detailedBudget && selectedProposal.detailedBudget.length > 0) && (
@@ -190,13 +204,21 @@ const Popup: React.FC<PopupProps> = ({
                 <div className="p-4 md:p-6 border-t border-gray-200 bg-gray-50 rounded-b-lg">
                     {errorMessage && (<div className="alert alert-error text-xs p-2 mb-3"><div><span>{errorMessage}</span></div></div>)}
 
-                    {(selectedProposal.status === 'Pending' || selectedProposal.status === 'Review' || selectedProposal.status === 'Awaiting') && !isRejecting && !isClarifying && !isApproving && (
+                    {selectedProposal.status === 'Pending' && selectedProposal.awaiting === userRole && !isRejecting && !isClarifying && !isApproving && (
                         <div className="flex flex-wrap gap-3 justify-end">
                             <button onClick={handleApproveClick} className="btn btn-sm btn-success" disabled={isLoading}>Approve</button>
                             <button onClick={handleClarificationClick} className="btn btn-sm btn-warning" disabled={isLoading}>Request Clarification</button>
                             <button onClick={handleRejectClick} className="btn btn-sm btn-error" disabled={isLoading}>Reject</button>
                         </div>
                     )}
+                    {/* // Uncomment if backend adds 'Review' status
+                    {(selectedProposal.status === 'Pending' || selectedProposal.status === 'Review') && selectedProposal.awaiting === userRole && !isRejecting && !isClarifying && !isApproving && (
+                        <div className="flex flex-wrap gap-3 justify-end">
+                            <button onClick={handleApproveClick} className="btn btn-sm btn-success" disabled={isLoading}>Approve</button>
+                            <button onClick={handleClarificationClick} className="btn btn-sm btn-warning" disabled={isLoading}>Request Clarification</button>
+                            <button onClick={handleRejectClick} className="btn btn-sm btn-error" disabled={isLoading}>Reject</button>
+                        </div>
+                    )} */}
 
                     {isApproving && (
                         <div className="mt-4 space-y-3 text-center">

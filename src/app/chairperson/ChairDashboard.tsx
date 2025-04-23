@@ -8,46 +8,154 @@ import Popup from './popup';
 import Recents from './recents';
 import CalendarView from './calendarview';
 import { useAuth } from '@/context/AuthContext';
-import { User } from '@/lib/users';
 
-// --- Interfaces based on Chair API Docs (assumed same as Vice) ---
-
+// Shared Interfaces
 export interface Item {
-    id: number; proposal_id: number; category: string; sub_category: string; type: string | null; quantity: number; cost: number; amount: number; created_at: string | null; updated_at: string | null; status: string;
+    id: number;
+    proposal_id: number;
+    category: string;
+    sub_category: string;
+    type: string | null;
+    quantity: number;
+    cost: number;
+    amount: number;
+    created_at: string | null;
+    updated_at: string | null;
+    status: string;
 }
+
 export interface Sponsor {
-    id: number; proposal_id: number; category: string; amount: number; reward: string; mode: string; about: string; benefit: string; created_at: string | null; updated_at: string | null;
+    id: number;
+    proposal_id: number;
+    category: string;
+    amount: number;
+    reward: string;
+    mode: string;
+    about: string;
+    benefit: string;
+    created_at: string | null;
+    updated_at: string | null;
 }
+
 export interface Message {
-    id: number; proposal_id: number; user_id: number; message: string; created_at: string | null; updated_at: string | null;
+    id: number;
+    proposal_id: number;
+    user_id: number;
+    message: string;
+    created_at: string | null;
+    updated_at: string | null;
 }
 
-// Interface matching items from GET /api/chair/proposals LIST response
-interface ProposalListItem {
-    id: number; user_id: number; chief_id: number; title: string; description: string; start: string; end: string; category: string; past: string | null; other: string | null; status: string; participant_expected: number | null; participant_categories: string | null; fund_uni: number | null; fund_registration: number | null; fund_sponsor: number | null; fund_others: number | null; created_at: string | null; updated_at: string | null; cheif_reason: string; cheif_hotel_name: string; cheif_hotel_address: string; cheif_hotel_duration: string; cheif_hotel_type: string; cheif_travel_name: string; cheif_travel_address: string; cheif_travel_duration: string; cheif_travel_type: string; department_name: string;
+export interface User {
+    id: number;
+    name: string;
+    email: string;
+    designation?: string;
+    role: string;
 }
 
-// Interface matching the FULL response of GET /api/chair/proposals/{proposal}
-interface DetailedProposalResponse {
-    proposal: ProposalListItem; chief: User | null; items: Item[]; sponsors: Sponsor[]; messages: Message[]; user?: User | null; department_name: string;
-}
-
-// Unified Interface for internal use and Popup
-export interface UnifiedProposal {
-    id: string; title: string; status: string; date: string; organizer: string; convenerName: string; convenerEmail: string; submissionTimestamp: string; description: string; category: string; eventStartDate: string; eventEndDate: string; eventDate: string; eventDescription: string; eventTitle: string; cost: number; detailedBudget: Item[]; estimatedBudget: number; email: string; location?: string; chiefGuestName?: string; chiefGuestDesignation?: string; designation?: string; durationEvent?: string; fundingDetails?: { registrationFund?: number | null; sponsorshipFund?: number | null; universityFund?: number | null; otherSourcesFund?: number | null; }; organizingDepartment?: string; pastEvents?: string | string[] | null; proposalStatus?: string; relevantDetails?: string | null; sponsorshipDetails?: Sponsor[]; sponsorshipDetailsRows?: any[]; rejectionMessage?: string; reviewMessage?: string; clarificationMessage?: string; tags?: string[]; messages?: Message[]; chief?: User | null; user?: User | null;
-}
-
-// Simplified Proposal interface for child components (Overview, Recents, CalendarView)
-interface Proposal {
+export interface Proposal {
     id: string;
     title: string;
-    status: string;
+    status: 'Completed' | 'Pending' | 'Rejected' | 'Review';
     date: string;
     organizer: string;
     convenerName: string;
     convenerEmail: string;
+    submissionTimestamp: string;
     designation?: string;
     tags?: string[];
+    awaiting?: string | null;
+}
+
+export interface UnifiedProposal {
+    id: string;
+    title: string;
+    status: 'Completed' | 'Pending' | 'Rejected' | 'Review';
+    date: string;
+    organizer: string;
+    convenerName: string;
+    convenerEmail: string;
+    submissionTimestamp: string;
+    description: string;
+    category: string;
+    eventStartDate: string;
+    eventEndDate: string;
+    eventDate: string;
+    eventDescription: string;
+    eventTitle: string;
+    cost: number;
+    detailedBudget: Item[];
+    estimatedBudget: number;
+    email: string;
+    location?: string;
+    chiefGuestName?: string;
+    chiefGuestDesignation?: string;
+    designation?: string;
+    durationEvent?: string;
+    fundingDetails?: {
+        registrationFund?: number | null;
+        sponsorshipFund?: number | null;
+        universityFund?: number | null;
+        otherSourcesFund?: number | null;
+    };
+    organizingDepartment?: string;
+    pastEvents?: string | string[] | null;
+    proposalStatus?: string;
+    relevantDetails?: string | null;
+    sponsorshipDetails?: Sponsor[];
+    sponsorshipDetailsRows?: any[];
+    rejectionMessage?: string;
+    tags?: string[];
+    messages?: Message[];
+    chief?: User | null;
+    user?: User | null;
+    awaiting: string | null;
+}
+
+// Interface matching items from GET /api/chair/proposals LIST response
+interface ProposalListItem {
+    id: number;
+    user_id: number;
+    chief_id: number;
+    title: string;
+    description: string;
+    start: string;
+    end: string;
+    category: string;
+    past: string | null;
+    other: string | null;
+    status: 'Completed' | 'Pending' | 'Rejected' | 'Review';
+    participant_expected: number | null;
+    participant_categories: string | null;
+    fund_uni: number | null;
+    fund_registration: number | null;
+    fund_sponsor: number | null;
+    fund_others: number | null;
+    created_at: string | null;
+    updated_at: string | null;
+    cheif_reason: string;
+    cheif_hotel_name: string;
+    cheif_hotel_address: string;
+    cheif_hotel_duration: string;
+    cheif_hotel_type: string;
+    cheif_travel_name: string;
+    cheif_travel_address: string;
+    cheif_travel_duration: string;
+    cheif_travel_type: string;
+    department_name: string;
+    awaiting: string | null;
+}
+
+// Interface matching the FULL response of GET /api/chair/proposals/{proposal}
+interface DetailedProposalResponse {
+    proposal: ProposalListItem;
+    chief: User | null;
+    items: Item[];
+    sponsors: Sponsor[];
+    messages: Message[];
+    user?: User | null;
+    department_name: string;
 }
 
 // API URL
@@ -138,20 +246,27 @@ const ChairDashboard: React.FC = () => {
     // Stats Calculation
     const calculateStats = (proposalList: ProposalListItem[]) => {
         if (!Array.isArray(proposalList)) {
-            return { approvedProposalsCount: 0, pendingProposalsCount: 0, rejectedProposalsCount: 0, reviewProposalsCount: 0, totalProposalsCount: 0 };
+            return { completedProposalsCount: 0, pendingProposalsCount: 0, rejectedProposalsCount: 0, awaitingChairCount: 0, totalProposalsCount: 0 };
         }
-        let approved = 0, pending = 0, rejected = 0, review = 0;
+        let completed = 0, pending = 0, rejected = 0, awaitingChairCount = 0;
         proposalList.forEach(p => {
             if (!p || typeof p.status !== 'string') return;
             const status = p.status.toLowerCase();
-            if (status === 'approved') approved++;
+            if (status === 'completed') completed++;
+            else if (status === 'pending') {
+                pending++;
+                if (p.awaiting === 'chair') awaitingChairCount++;
+            }
             else if (status === 'rejected') rejected++;
-            else if (status === 'review') { review++; pending++; }
-            else if (['pending', 'submitted', 'clarification_requested', 'awaiting'].includes(status)) pending++;
+            // // Uncomment if backend adds 'Review' status
+            // else if (status === 'review') {
+            //     pending++;
+            //     if (p.awaiting === 'chair') awaitingChairCount++;
+            // }
         });
-        return { approvedProposalsCount: approved, pendingProposalsCount: pending, rejectedProposalsCount: rejected, reviewProposalsCount: review, totalProposalsCount: proposalList.length };
+        return { completedProposalsCount: completed, pendingProposalsCount: pending, rejectedProposalsCount: rejected, awaitingChairCount, totalProposalsCount: proposalList.length };
     };
-    const stats = Array.isArray(proposals) ? calculateStats(proposals) : { approvedProposalsCount: 0, pendingProposalsCount: 0, rejectedProposalsCount: 0, reviewProposalsCount: 0, totalProposalsCount: 0 };
+    const stats = Array.isArray(proposals) ? calculateStats(proposals) : { completedProposalsCount: 0, pendingProposalsCount: 0, rejectedProposalsCount: 0, awaitingChairCount: 0, totalProposalsCount: 0 };
 
     // Recent Proposals
     const recentAppliedProposals = Array.isArray(proposals) ? [...proposals]
@@ -167,17 +282,19 @@ const ChairDashboard: React.FC = () => {
         const submissionTs = p.created_at || '';
 
         const tags: string[] = [];
-        const lowerStatus = p.status?.toLowerCase() || '';
-        if (lowerStatus === 'approved') tags.push('Done');
+        const lowerStatus = p.status.toLowerCase();
+        if (lowerStatus === 'completed') tags.push('Done');
         if (lowerStatus === 'rejected') tags.push('Rejected');
-        if (['review', 'clarification_requested', 'awaiting'].includes(lowerStatus)) tags.push('Review');
+        if (lowerStatus === 'pending' && p.awaiting === 'chair') tags.push('Awaiting Action');
+        // // Uncomment if backend adds 'Review' status
+        // if (lowerStatus === 'review') tags.push('Review');
 
         return {
             id: String(p.id),
             title: p.title || 'Untitled Proposal',
             description: p.description || '',
             category: p.category || 'Uncategorized',
-            status: p.status || 'Unknown',
+            status: p.status,
             date: p.start || '',
             eventStartDate: p.start || '',
             eventEndDate: p.end || '',
@@ -200,6 +317,9 @@ const ChairDashboard: React.FC = () => {
             designation: '',
             durationEvent: '',
             organizingDepartment: p.department_name || '',
+            awaiting: p.awaiting,
+            messages: [],
+            rejectionMessage: ''
         };
     };
 
@@ -212,8 +332,10 @@ const ChairDashboard: React.FC = () => {
         organizer: p.organizer,
         convenerName: p.convenerName,
         convenerEmail: p.convenerEmail,
+        submissionTimestamp: p.submissionTimestamp,
         designation: p.designation,
         tags: p.tags,
+        awaiting: p.awaiting
     });
 
     // Map Detailed Response to UnifiedProposal
@@ -232,24 +354,28 @@ const ChairDashboard: React.FC = () => {
         const designation = submitter?.designation || '';
         const submissionTs = p.created_at || '';
 
-        let rejectionMsg = '', reviewMsg = '', clarificationMsg = '';
+        let rejectionMsg = '';
+        // let reviewMsg = '';
         detailData.messages?.forEach(msg => {
             if (p.status === 'Rejected' && !rejectionMsg) rejectionMsg = msg.message;
-            if (['Review', 'Clarification Requested', 'Awaiting'].includes(p.status) && !reviewMsg) reviewMsg = msg.message;
+            // // Uncomment if backend adds 'Review' status
+            // if (p.status === 'Review' && !reviewMsg) reviewMsg = msg.message;
         });
 
         const tags: string[] = [];
-        const lowerStatus = p.status?.toLowerCase() || '';
-        if (lowerStatus === 'approved') tags.push('Done');
+        const lowerStatus = p.status.toLowerCase();
+        if (lowerStatus === 'completed') tags.push('Done');
         if (lowerStatus === 'rejected') tags.push('Rejected');
-        if (['review', 'clarification_requested', 'awaiting'].includes(lowerStatus)) tags.push('Review');
+        if (lowerStatus === 'pending' && p.awaiting === 'chair') tags.push('Awaiting Action');
+        // // Uncomment if backend adds 'Review' status
+        // if (lowerStatus === 'review') tags.push('Review');
 
         return {
             id: String(p.id),
             title: p.title || 'Untitled Proposal',
             description: p.description || '',
             category: p.category || 'Uncategorized',
-            status: p.status || 'Unknown',
+            status: p.status,
             date: p.start || '',
             eventStartDate: p.start || '',
             eventEndDate: p.end || '',
@@ -275,11 +401,11 @@ const ChairDashboard: React.FC = () => {
             pastEvents: p.past || '',
             relevantDetails: p.other || '',
             rejectionMessage: rejectionMsg,
-            reviewMessage: reviewMsg,
-            clarificationMessage: clarificationMsg,
+            // reviewMessage: reviewMsg,
             messages: detailData.messages,
             chief: detailData.chief,
             user: detailData.user,
+            awaiting: p.awaiting
         };
     };
 
@@ -341,7 +467,7 @@ const ChairDashboard: React.FC = () => {
             </div>
 
             <div className="mt-6">
-                <CalendarView proposals={proposalsForView} />
+                <CalendarView proposals={unifiedProposals} />
             </div>
 
             {proposalForPopup && (
