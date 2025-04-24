@@ -3,7 +3,7 @@ import React from 'react';
 interface Proposal {
     id: string;
     title: string;
-    status: 'Approved' | 'Pending' | 'Rejected' | 'Review';
+    status: 'Approved' | 'Pending' | 'Rejected' | 'Review'; // Changed from string
     date: string;
     organizer: string;
     convenerName: string;
@@ -19,7 +19,7 @@ const Recents: React.FC<RecentsProps> = ({ recentAppliedProposals, handleProposa
     return (
         <div className="card shadow-md rounded-lg bg-white">
             <div className="card-body">
-                <h2 className="card-title text-lg font-bold text-gray-700 mb-4">Associate Chair Recent Proposals</h2>
+                <h2 className="card-title text-lg font-bold text-gray-700 mb-4">Recent Proposals</h2>
                 <div className="overflow-x-auto">
                     <table className="table table-compact w-full">
                         <thead>
