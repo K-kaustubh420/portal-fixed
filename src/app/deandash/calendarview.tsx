@@ -7,7 +7,7 @@ import interactionPlugin from '@fullcalendar/interaction';
 import listPlugin from '@fullcalendar/list';
 import { EventInput } from '@fullcalendar/core';
 import Popup from './popup';
-import { UnifiedProposal } from './ChairDashboard';
+import { UnifiedProposal } from './deandash';
 
 const LoadingComponent = () => (
     <div className="flex items-center justify-center min-h-screen bg-gray-100">

@@ -32,7 +32,7 @@ const ProposalOverviewTable: React.FC<ProposalOverviewTableProps> = ({ eventProp
                 <div className="overflow-x-auto">
                     <table className="table table-compact w-full">
                         <thead>
-                            <tr>
+                            <tr className="bg-blue-200 text-gray-700">
                                 <th>Title</th>
                                 <th>Organizing department</th>
                                 <th>Convener</th>

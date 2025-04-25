@@ -7,8 +7,9 @@ import Stats from './stats';
 import Popup from './popup';
 import Recents from './recents';
 import CalendarView from './calendarview';
+import BillStatus from './billstatus';
+import AwaitingAtU from './awaitingatu';
 import { useAuth } from '@/context/AuthContext';
-import { loadAuthData } from '@/lib/users';
 
 // Shared Interfaces
 export interface Item {
@@ -98,14 +99,15 @@ export interface UnifiedProposal {
         otherSourcesFund?: number | null;
     };
     organizingDepartment?: string;
+    department_name?: string;
     pastEvents?: string | string[] | null;
     proposalStatus?: string;
     relevantDetails?: string | null;
-    sponsorshipDetails?: Sponsor[];
+    sponsorshipDetails: Sponsor[];
     sponsorshipDetailsRows?: any[];
     rejectionMessage?: string;
     tags?: string[];
-    messages?: Message[];
+    messages: Message[];
     chief?: User | null;
     user?: User | null;
     awaiting: string | null;
@@ -181,72 +183,44 @@ interface ApiResponse {
     proposals: ProposalListItem[];
 }
 
-const API_BASE_URL = "https://pmspreview-htfbhkdnffcpf5dz.centralindia-01.azurewebsites.net";
-
 const DeanDashboard: React.FC = () => {
     const [proposals, setProposals] = useState<ProposalListItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [selectedProposalData, setSelectedProposalData] = useState<DetailedProposalResponse | null>(null);
+    const [selectedProposal, setSelectedProposal] = useState<UnifiedProposal | null>(null);
+    const [fetchError, setFetchError] = useState<string | null>(null);
     const [isPopupLoading, setIsPopupLoading] = useState(false);
     const { token, user, logout } = useAuth();
-
-    useEffect(() => {
-        console.log('DeanDashboard: useAuth output:', { token, user, userRole: user?.role });
-        console.log('DeanDashboard: proposals state:', proposals);
-        console.log('DeanDashboard: stats computed:', calculateStats(proposals));
-        if (typeof window !== 'undefined' && window.localStorage) {
-            console.log('DeanDashboard: localStorage contents:', {
-                authToken: localStorage.getItem('authToken'),
-                userData: localStorage.getItem('userData'),
-                allKeys: Object.keys(localStorage)
-            });
-            const authData = loadAuthData();
-            console.log('DeanDashboard: loadAuthData result:', authData);
-        }
-    }, [token, user, proposals]);
-
-    useEffect(() => {
-        console.log('DeanDashboard: Proposals state updated:', proposals);
-    }, [proposals]);
 
     const fetchProposals = useCallback(async () => {
         if (!token || !user || user.role !== 'dean') {
             setError(user ? "Access denied. User is not a Dean." : "User not authenticated.");
             setLoading(false);
-            console.log('DeanDashboard: fetchProposals skipped due to invalid auth:', { tokenExists: !!token, userRole: user?.role });
             return;
         }
         setLoading(true);
         setError(null);
-        const proposalEndpoint = `${API_BASE_URL}/api/dean/proposals`;
+        const proposalEndpoint = "https://pmspreview-htfbhkdnffcpf5dz.centralindia-01.azurewebsites.net/api/dean/proposals";
         try {
-            console.log('DeanDashboard: Fetching proposals from:', proposalEndpoint);
-            console.log('DeanDashboard: Using token:', token ? token.slice(0, 10) + '...' : 'No token');
             const response = await axios.get<ApiResponse>(proposalEndpoint, {
                 headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
             });
-            console.log('DeanDashboard: Proposals fetched:', response.data.proposals);
-            setProposals(response.data.proposals);
+            setProposals(response.data.proposals || []);
         } catch (err: any) {
-            console.error('DeanDashboard: Detailed error:', err);
             const axiosError = err as AxiosError;
-            console.log('DeanDashboard: Error code:', axiosError.code);
-            console.log('DeanDashboard: Error message:', axiosError.message);
-            console.log('DeanDashboard: Error response:', axiosError.response);
-            console.log('DeanDashboard: Error request:', axiosError.request);
+            let errorMessage = 'Failed to fetch proposals';
             if (axiosError.code === 'ERR_NETWORK') {
-                setError("Network error: Unable to reach the server. Please check your connection or server status.");
+                errorMessage = "Network error: Unable to reach the server.";
             } else if (axiosError.response?.status === 401) {
-                setError("Authentication failed.");
+                errorMessage = "Authentication failed.";
                 logout();
             } else if (axiosError.response?.status === 403) {
-                setError("Forbidden.");
+                errorMessage = "Forbidden: You lack permission to view proposals.";
             } else {
-                setError((axiosError.response?.data as any)?.message || axiosError.message || 'Failed to fetch proposals');
+                errorMessage = (axiosError.response?.data as any)?.message || axiosError.message || 'Failed to fetch proposals';
             }
-            // Avoid resetting proposals to keep existing data
-            // setProposals([]);
+            console.error('DeanDashboard: Error fetching proposals:', { errorMessage, status: axiosError.response?.status });
+            setError(errorMessage);
         } finally {
             setLoading(false);
         }
@@ -258,45 +232,50 @@ const DeanDashboard: React.FC = () => {
         } else if (user) {
             setError("Access denied. This dashboard is for Deans only.");
             setLoading(false);
-            console.log('DeanDashboard: Access denied, user role:', user?.role);
         } else {
             setError("User not authenticated.");
             setLoading(false);
-            console.log('DeanDashboard: No user authenticated');
         }
     }, [fetchProposals, user]);
 
-    const fetchProposalDetail = useCallback(async (proposalId: number | string) => {
+    const fetchProposalDetail = useCallback(async (proposalId: number): Promise<UnifiedProposal | null> => {
         if (!token || !user || user.role !== 'dean') {
-            console.error("DeanDashboard: fetchProposalDetail cancelled: Missing token, user, or incorrect role.", { tokenExists: !!token, userRole: user?.role });
-            return;
+            console.error('DeanDashboard: fetchProposalDetail cancelled: Invalid auth.', {
+                tokenExists: !!token,
+                userRole: user?.role
+            });
+            setFetchError("Authentication or authorization failed.");
+            return null;
         }
         setIsPopupLoading(true);
-        setError(null);
-        const detailEndpoint = `${API_BASE_URL}/api/dean/proposal/${proposalId}`;
+        setFetchError(null);
+        const detailEndpoint = `https://pmspreview-htfbhkdnffcpf5dz.centralindia-01.azurewebsites.net/api/dean/proposals/${proposalId}`;
         try {
-            console.log('DeanDashboard: Fetching proposal detail:', { proposalId, endpoint: detailEndpoint });
+            console.log('DeanDashboard: Fetching proposal detail:', { proposalId, detailEndpoint });
             const response = await axios.get<DetailedProposalResponse>(detailEndpoint, {
                 headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
             });
-            console.log('DeanDashboard: Proposal detail fetched:', response.data);
-            setSelectedProposalData(response.data);
+            return mapDetailResponseToUnifiedProposal(response.data);
         } catch (err: any) {
-            console.error("DeanDashboard: Error fetching proposal detail:", err);
             const axiosError = err as AxiosError;
             let errorMessage = 'Failed to fetch proposal details';
-            if (axiosError.response?.status === 401) {
+            if (axiosError.response?.status === 404) {
+                errorMessage = `Proposal not found / awaiting at the ${user.role}`;
+            } else if (axiosError.response?.status === 401) {
                 errorMessage = "Authentication failed.";
                 logout();
             } else if (axiosError.response?.status === 403) {
-                errorMessage = "Forbidden to view this proposal.";
-            } else if (axiosError.response?.status === 404) {
-                errorMessage = `Proposal with ID ${proposalId} not found.`;
+                errorMessage = "Forbidden: You lack permission to view this proposal.";
             } else {
                 errorMessage = (axiosError.response?.data as any)?.message || axiosError.message || 'Failed to fetch proposal details';
             }
-            setError(errorMessage);
-            setSelectedProposalData(null);
+            console.error('DeanDashboard: Error fetching proposal detail:', {
+                proposalId,
+                errorMessage,
+                status: axiosError.response?.status
+            });
+            setFetchError(errorMessage);
+            return null;
         } finally {
             setIsPopupLoading(false);
         }
@@ -315,9 +294,21 @@ const DeanDashboard: React.FC = () => {
             else if (status === 'rejected') rejected++;
             else if (status === 'review') review++;
         });
-        return { approvedProposalsCount: approved, pendingProposalsCount: pending, rejectedProposalsCount: rejected, reviewProposalsCount: review, totalProposalsCount: proposalList.length };
+        return {
+            approvedProposalsCount: approved,
+            pendingProposalsCount: pending,
+            rejectedProposalsCount: rejected,
+            reviewProposalsCount: review,
+            totalProposalsCount: proposalList.length
+        };
     };
-    const stats = Array.isArray(proposals) ? calculateStats(proposals) : { approvedProposalsCount: 0, pendingProposalsCount: 0, rejectedProposalsCount: 0, reviewProposalsCount: 0, totalProposalsCount: 0 };
+    const stats = Array.isArray(proposals) ? calculateStats(proposals) : {
+        approvedProposalsCount: 0,
+        pendingProposalsCount: 0,
+        rejectedProposalsCount: 0,
+        reviewProposalsCount: 0,
+        totalProposalsCount: 0
+    };
 
     const recentAppliedProposals = Array.isArray(proposals) ? [...proposals]
         .filter(p => p && p.created_at)
@@ -326,6 +317,10 @@ const DeanDashboard: React.FC = () => {
 
     const mapListItemToUnifiedProposal = (p: ProposalListItem): UnifiedProposal => {
         try {
+            if (!p.id || isNaN(p.id)) {
+                console.error('DeanDashboard: Invalid proposal ID:', { proposalId: p.id });
+                throw new Error('Invalid proposal ID');
+            }
             const calculatedCost = (p.fund_uni ?? 0) + (p.fund_registration ?? 0) + (p.fund_sponsor ?? 0) + (p.fund_others ?? 0);
             const placeholderEmail = p.faculty?.email || `user${p.user_id}@example.com`;
             const placeholderName = p.faculty?.name || `User ID: ${p.user_id}`;
@@ -385,9 +380,9 @@ const DeanDashboard: React.FC = () => {
                 } : null
             };
         } catch (error) {
-            console.error('DeanDashboard: Error in mapListItemToUnifiedProposal:', error, 'Proposal:', p);
+            console.error('DeanDashboard: Error in mapListItemToUnifiedProposal:', { error, proposalId: p.id });
             return {
-                id: String(p.id),
+                id: String(p.id || 'unknown'),
                 title: 'Error Parsing Proposal',
                 description: '',
                 category: 'Unknown',
@@ -433,10 +428,10 @@ const DeanDashboard: React.FC = () => {
         awaiting: p.awaiting
     });
 
-    const mapDetailResponseToUnifiedProposal = (detailData: DetailedProposalResponse): UnifiedProposal | null => {
+    const mapDetailResponseToUnifiedProposal = (detailData: DetailedProposalResponse): UnifiedProposal => {
         if (!detailData || !detailData.proposal) {
-            console.error("DeanDashboard: mapDetailResponseToUnifiedProposal received invalid detailData:", detailData);
-            return null;
+            console.error('DeanDashboard: Invalid detailData in mapDetailResponseToUnifiedProposal:', detailData);
+            throw new Error('Invalid proposal data');
         }
 
         const p = detailData.proposal;
@@ -510,38 +505,46 @@ const DeanDashboard: React.FC = () => {
         };
     };
 
-    const handleProposalClick = useCallback((proposal: Proposal) => {
-        console.log('DeanDashboard: Proposal clicked:', proposal);
-        const proposalIdNum = parseInt(proposal.id, 10);
-        if (!isNaN(proposalIdNum)) {
-            fetchProposalDetail(proposalIdNum);
+    const handleProposalClick = useCallback(async (proposal: Proposal) => {
+        const proposalId = proposal.id ? String(proposal.id).trim() : null;
+        if (proposalId && !isNaN(parseInt(proposalId, 10))) {
+            console.log('DeanDashboard: Proposal clicked:', { proposalId, title: proposal.title });
+            const numericId = parseInt(proposalId, 10);
+            // First, try to fetch detailed data
+            const detailedProposal = await fetchProposalDetail(numericId);
+            if (detailedProposal) {
+                setSelectedProposal(detailedProposal);
+            } else {
+                // Fall back to unifiedProposals
+                const unifiedProposal = unifiedProposals.find(p => p.id === proposalId);
+                if (unifiedProposal) {
+                    setSelectedProposal(unifiedProposal);
+                } else {
+                    console.error('DeanDashboard: Proposal not found in unifiedProposals:', { proposalId });
+                    setError('Selected proposal not found.');
+                }
+            }
         } else {
-            console.error("DeanDashboard: Invalid numeric ID parsed from proposal:", proposal.id);
-            setError("Could not load details for the selected proposal.");
+            console.error('DeanDashboard: Invalid proposal ID:', { proposalIdRaw: proposal.id });
+            setError('Could not load details for the selected proposal.');
         }
     }, [fetchProposalDetail]);
 
-    const closePopup = () => setSelectedProposalData(null);
-    const handleProposalUpdated = () => { fetchProposals(); closePopup(); };
+    const closePopup = () => {
+        setSelectedProposal(null);
+        setFetchError(null);
+        setError(null);
+    };
 
-    console.log('DeanDashboard: Render state:', { loading, error, userRole: user?.role, proposalsLength: proposals.length });
-
-    // Simplified rendering for debugging
     const unifiedProposals: UnifiedProposal[] = Array.isArray(proposals) ? proposals.map(mapListItemToUnifiedProposal) : [];
     const proposalsForView: Proposal[] = unifiedProposals.map(mapUnifiedToSimplifiedProposal);
     const recentsForView: Proposal[] = Array.isArray(recentAppliedProposals) ? recentAppliedProposals.map(mapListItemToUnifiedProposal).map(mapUnifiedToSimplifiedProposal) : [];
-    const proposalForPopup: UnifiedProposal | null = selectedProposalData ? mapDetailResponseToUnifiedProposal(selectedProposalData) : null;
-
-    console.log('DeanDashboard: Props for Overview:', proposalsForView);
-    console.log('DeanDashboard: Props for Recents:', recentsForView);
-    console.log('DeanDashboard: Props for Stats:', stats);
 
     return (
         <div className="dean-dashboard p-4 md:p-6 space-y-6 bg-white text-black min-h-screen">
             <h1 className="text-2xl md:text-3xl font-bold text-slate-800 mb-4">
                 Dean Dashboard
             </h1>
-            {/*<pre>{JSON.stringify(proposals, null, 2)}</pre> Debug: Display raw proposals */}
             {!loading && !error && <Stats {...stats} />}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-6">
@@ -554,6 +557,17 @@ const DeanDashboard: React.FC = () => {
                         handleProposalClick={handleProposalClick}
                     />
                 </div>
+                <div className="space-y-6">
+                    <BillStatus
+                        proposals={proposalsForView}
+                        authToken={token}
+                        apiBaseUrl="https://pmspreview-htfbhkdnffcpf5dz.centralindia-01.azurewebsites.net"
+                    />
+                    <AwaitingAtU
+                        proposals={unifiedProposals}
+                        userRole={user?.role || ''}
+                    />
+                </div>
             </div>
             <div className="mt-6">
                 <CalendarView proposals={unifiedProposals} />
@@ -562,14 +576,15 @@ const DeanDashboard: React.FC = () => {
                 <div className="fixed inset-0 bg-black bg-opacity-30 flex justify-center items-center z-60">
                     <span className="loading loading-lg loading-spinner text-white"></span>
                 </div>
-            ) : proposalForPopup ? (
+            ) : selectedProposal ? (
                 <Popup
-                    selectedProposal={proposalForPopup}
+                    selectedProposal={selectedProposal}
                     closePopup={closePopup}
-                    onProposalUpdated={handleProposalUpdated}
+                    onProposalUpdated={() => fetchProposals()}
                     authToken={token}
-                    apiBaseUrl={API_BASE_URL}
-                    userRole={user?.role || 'dean'}
+                    apiBaseUrl="https://pmspreview-htfbhkdnffcpf5dz.centralindia-01.azurewebsites.net"
+                    userRole={user?.role || ''}
+                    fetchError={fetchError}
                 />
             ) : error ? (
                 <div className="alert alert-error shadow-lg m-4">
