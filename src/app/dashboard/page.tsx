@@ -11,6 +11,8 @@ import { loadAuthData, User as UserType } from '@/lib/users'; // Renamed User to
 import Hod from '@/app/hod/HODdasbaord';
 import DeanDashboard from '../deandash/deandash';// <<< ADJUST PATH IF NECESSARY
 import ConvenerDashboard from '@/app/convenerdashboard/convenerdahboard';
+import ChairDashboard from '../chairperson/ChairDashboard';
+import ViceChairDashboard from '../associatechair/ViceDashboard';
 
 // React component names should be PascalCase
 const Page = () => {
@@ -41,7 +43,14 @@ const Page = () => {
       DashboardComponent = <Hod />;
     } else if (role === 'dean') {
       DashboardComponent = <DeanDashboard />;
-    } else {
+    } else if(role ==='chair'){ 
+
+      DashboardComponent = <ChairDashboard />;
+    }
+    else if (role=='vice_chair'){
+      DashboardComponent = <ViceChairDashboard />;
+    }
+     else {
       // Assuming 'convener' or any other role falls here
       DashboardComponent = <ConvenerDashboard />;
     }
