@@ -1,11 +1,12 @@
 "use client";
 import React, { useState, useEffect, useCallback, useRef, useId } from 'react';
 import DatePicker from 'react-datepicker';
-import 'react-datepicker/dist/react-datepicker.css';
-import { Trash2, PlusCircle, Info, Users, UserCheck, BedDouble,  DollarSign, FileText, Award, CalendarDays } from 'lucide-react';
+import 'react-datepicker/dist/react-datepicker.css'; // Keep datepicker CSS
+import { Trash2, PlusCircle, Info, Users, UserCheck, BedDouble, DollarSign, FileText, Award, CalendarDays, AlertCircle } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
-import { loadAuthData, User } from '@/lib/users';
+import { loadAuthData, User } from '@/lib/users'; // Assuming this path is correct
 
+// --- Interfaces (No change needed) ---
 interface DetailedBudgetRow {
     localId: string;
     category: string;
@@ -36,7 +37,7 @@ interface ChiefGuestRow {
     reason: string;
 }
 
-// Enums / Constants (Keep these as they are)
+// --- Enums / Constants (Keep as they are) ---
 const HOTEL_TYPES = ['srm', 'others'] as const;
 const TRAVEL_TYPES = ['srm', 'others'] as const;
 const EVENT_CATEGORIES = [
@@ -60,41 +61,106 @@ const studentCategories = [
     "Mechatronics Engineering", "Software Engineering",
 ];
 
-// --- Helper Component for Section Headers ---
+// --- Helper Component: Section Header (Slight style tweak) ---
 const SectionHeader: React.FC<{ title: string; icon?: React.ReactNode; required?: boolean }> = ({ title, icon, required }) => (
-    <div className="flex items-center gap-2 mb-5">
+    <div className="flex items-center gap-3 mb-6 pb-2 border-b border-gray-200">
         {icon && <span className="text-blue-600">{icon}</span>}
         <h3 className="text-xl font-semibold text-gray-800">
-            {title} {required && <span className="text-red-500 align-middle">*</span>}
+            {title} {required && <span className="text-red-500 align-middle text-base">*</span>}
         </h3>
     </div>
 );
 
+// --- Helper Component: Input Field ---
+interface InputFieldProps extends React.InputHTMLAttributes<HTMLInputElement> {
+    label: string;
+    id: string;
+    error?: string;
+    required?: boolean;
+}
+const InputField: React.FC<InputFieldProps> = ({ label, id, error, required, ...props }) => (
+    <div>
+        <label htmlFor={id} className="block text-sm font-medium text-gray-700 mb-1">
+            {label} {required && <span className="text-red-500">*</span>}
+        </label>
+        <input
+            id={id}
+            className={`input input-bordered w-full bg-white text-gray-900 border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 ${error ? 'border-red-500' : ''}`}
+            {...props}
+        />
+        {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+    </div>
+);
+
+// --- Helper Component: TextArea Field ---
+interface TextAreaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
+    label: string;
+    id: string;
+    error?: string;
+    required?: boolean;
+}
+const TextAreaField: React.FC<TextAreaProps> = ({ label, id, error, required, ...props }) => (
+    <div>
+        <label htmlFor={id} className="block text-sm font-medium text-gray-700 mb-1">
+            {label} {required && <span className="text-red-500">*</span>}
+        </label>
+        <textarea
+            id={id}
+            className={`textarea textarea-bordered w-full bg-white text-gray-900 border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 ${error ? 'border-red-500' : ''}`}
+            rows={3}
+            {...props}
+        />
+        {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+    </div>
+);
+
+// --- Helper Component: Select Field ---
+interface SelectFieldProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
+    label: string;
+    id: string;
+    error?: string;
+    required?: boolean;
+    children: React.ReactNode;
+}
+const SelectField: React.FC<SelectFieldProps> = ({ label, id, error, required, children, ...props }) => (
+     <div>
+         <label htmlFor={id} className="block text-sm font-medium text-gray-700 mb-1">
+             {label} {required && <span className="text-red-500">*</span>}
+         </label>
+         <select
+             id={id}
+             className={`select select-bordered w-full bg-white text-gray-900 border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 ${error ? 'border-red-500' : ''}`}
+             {...props}
+         >
+             {children}
+         </select>
+         {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+     </div>
+);
+
 
 export default function EventProposalForm() {
-   ;
     const searchParams = useSearchParams();
 
-    // --- State for User and Token loaded from localStorage ---
+    // --- State ---
     const [currentUser, setCurrentUser] = useState<User | null>(null);
     const [authToken, setAuthToken] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(false); // Added for submission feedback
+    const [formErrors, setFormErrors] = useState<Record<string, string>>({}); // For field-specific errors
 
-    // --- Stable ID Generation ---
+    // Stable IDs
     const chiefGuestBaseId = useId();
     const budgetBaseId = useId();
     const sponsorBaseId = useId();
     const nextLocalIdSuffix = useRef(1);
+    const generateLocalId = () => `row-${nextLocalIdSuffix.current++}`;
 
-    const generateLocalId = () => {
-        return `row-${nextLocalIdSuffix.current++}`;
-    }
-
-    // --- State Variables (No change needed in definitions) ---
+    // Form State
     const [proposalId, setProposalId] = useState<string | null>(null);
     const [eventTitle, setEventTitle] = useState('');
     const [eventDescription, setEventDescription] = useState('');
-    const [startDate, setStartDate] = useState<Date | undefined>(undefined);
-    const [endDate, setEndDate] = useState<Date | undefined>(undefined);
+    const [startDate, setStartDate] = useState<Date | null>(null); // Use null for initial state
+    const [endDate, setEndDate] = useState<Date | null>(null); // Use null for initial state
     const [durationEvent, setDurationEvent] = useState('');
     const [category, setCategory] = useState<typeof EVENT_CATEGORIES[number] | ''>('');
     const [pastEvents, setPastEvents] = useState('');
@@ -104,50 +170,61 @@ export default function EventProposalForm() {
     const [selectedStudentCategories, setSelectedStudentCategories] = useState<string[]>([]);
     const [fundUniversity, setFundUniversity] = useState('');
     const [fundRegistration, setFundRegistration] = useState('');
-    const [fundSponsorship, setFundSponsorship] = useState('');
+    const [fundSponsorship, setFundSponsorship] = useState(''); // Will be calculated
     const [fundOther, setFundOther] = useState('');
-    const [estimatedBudget, setEstimatedBudget] = useState('');
-    const [hotelName, setHotelName] = useState('SRM Hostel');
-    const [hotelAddress, setHotelAddress] = useState('SRM University');
-    const [hotelDuration, setHotelDuration] = useState('5');
+    const [estimatedBudget, setEstimatedBudget] = useState(''); // Will be calculated
+
+    // Chief Guest + Accommodation/Travel State (Simplified for single Chief Guest)
+    const [chiefGuestName, setChiefGuestName] = useState('');
+    const [chiefGuestDesignation, setChiefGuestDesignation] = useState('');
+    const [chiefGuestAddress, setChiefGuestAddress] = useState('');
+    const [chiefGuestPhone, setChiefGuestPhone] = useState('');
+    const [chiefGuestPan, setChiefGuestPan] = useState('');
+    const [chiefGuestReason, setChiefGuestReason] = useState('');
+    const [hotelName, setHotelName] = useState('');
+    const [hotelAddress, setHotelAddress] = useState('');
+    const [hotelDuration, setHotelDuration] = useState('');
     const [hotelType, setHotelType] = useState<typeof HOTEL_TYPES[number]>('srm');
-    const [travelName, setTravelName] = useState('Car');
-    const [travelAddress, setTravelAddress] = useState('Guindy');
-    const [travelDuration, setTravelDuration] = useState('1');
+    const [travelName, setTravelName] = useState('');
+    const [travelAddress, setTravelAddress] = useState('');
+    const [travelDuration, setTravelDuration] = useState('');
     const [travelType, setTravelType] = useState<typeof TRAVEL_TYPES[number]>('srm');
-    const [chiefGuestRows, setChiefGuestRows] = useState<ChiefGuestRow[]>([
-        { localId: generateLocalId(), name: '', designation: '', address: '', phone: '', pan: '', reason: '' },
-    ]);
+
+    // Detailed Budget & Sponsorship State
     const [detailedBudgetRows, setDetailedBudgetRows] = useState<DetailedBudgetRow[]>([
         { localId: generateLocalId(), category: '', sub_category: '', type: null, quantity: '', cost: '', amount: '' },
     ]);
     const [sponsorshipRows, setSponsorshipRows] = useState<SponsorshipRow[]>([
         { localId: generateLocalId(), category: '', amount: '', reward: '', mode: '', about: '', benefit: '' }
     ]);
-    const [dateConflictError, setDateConflictError] = useState<string | null>(null); // Keep this if needed for other checks
 
-    // --- Derived State Calculations (No change needed) ---
+    // --- Derived State Calculations ---
     const totalDetailedBudget = detailedBudgetRows.reduce((sum, row) => sum + (parseFloat(row.amount) || 0), 0);
     const totalSponsorshipAmount = sponsorshipRows.reduce((sum, row) => sum + (parseFloat(row.amount) || 0), 0);
 
     // --- Effects ---
 
-    // Load user data and token from localStorage on component mount
+    // Load auth data
     useEffect(() => {
         const { user: loadedUser, token: loadedToken } = loadAuthData();
         setCurrentUser(loadedUser);
         setAuthToken(loadedToken);
         console.log('Form mounted: Loaded auth data - User:', loadedUser, 'Token exists:', !!loadedToken);
-    }, []); // Empty dependency array ensures this runs only once on mount
+    }, []);
 
+    // Update calculated totals
+    useEffect(() => { setEstimatedBudget(totalDetailedBudget.toFixed(2)); }, [totalDetailedBudget]);
+    useEffect(() => { setFundSponsorship(totalSponsorshipAmount.toFixed(2)); }, [totalSponsorshipAmount]);
 
-    useEffect(() => { setEstimatedBudget(totalDetailedBudget.toString()); }, [totalDetailedBudget]);
-    useEffect(() => { setFundSponsorship(totalSponsorshipAmount.toString()); }, [totalSponsorshipAmount]);
-
+    // Calculate duration
     const calculateDuration = useCallback(() => {
         if (!startDate || !endDate) { setDurationEvent(""); return; }
         if (endDate < startDate) { setDurationEvent("End date cannot be before start date"); return; }
         const diffMs = endDate.getTime() - startDate.getTime();
+        if (diffMs < 0) { // Should be caught by the above check, but belts and suspenders
+             setDurationEvent("End date cannot be before start date");
+             return;
+        }
         const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
         const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
         const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
@@ -155,27 +232,68 @@ export default function EventProposalForm() {
     }, [startDate, endDate]);
     useEffect(() => { calculateDuration(); }, [calculateDuration, startDate, endDate]);
 
+    // Handle Edit Mode (Basic Setup - Fetching data needs implementation)
     useEffect(() => {
         const editMode = searchParams.get('edit');
-        if (editMode === 'true') {
-            // Logic for fetching and populating data in edit mode would go here
-            // For now, just setting the proposal ID if present
-            setProposalId(searchParams.get('proposalId') || null);
-            // You would typically fetch the proposal details using the ID and token here
-            // and populate all the state variables.
-            console.log("Edit mode detected, Proposal ID:", searchParams.get('proposalId'));
+        const id = searchParams.get('proposalId');
+        if (editMode === 'true' && id) {
+            setProposalId(id);
+            console.log("Edit mode detected, Proposal ID:", id);
+            // --- TODO: Fetch existing proposal data using 'id' and 'authToken' ---
+            // fetchProposalData(id, authToken).then(data => {
+            //      Populate all state variables here: setEventTitle(data.title), setStartDate(new Date(data.start)), etc.
+            //      Remember to populate the single chief guest state variables from data.chiefs[0]
+            //      Populate detailedBudgetRows and sponsorshipRows
+            // }).catch(error => console.error("Failed to load proposal data for editing:", error));
+            // --- Placeholder: Reset state for now ---
+             resetFormState(); // Reset form if fetch fails or isn't implemented yet
         } else {
-            // Reset IDs and initial rows when not in edit mode or on component mount
-            nextLocalIdSuffix.current = 1;
-            setChiefGuestRows([{ localId: generateLocalId(), name: '', designation: '', address: '', phone: '', pan: '', reason: '' }]);
-            setDetailedBudgetRows([{ localId: generateLocalId(), category: '', sub_category: '', type: null, quantity: '', cost: '', amount: '' }]);
-            setSponsorshipRows([{ localId: generateLocalId(), category: '', amount: '', reward: '', mode: '', about: '', benefit: '' }]);
+            resetFormState(); // Reset for new proposal
         }
-    }, [searchParams]); // Rerun if search params change
+    }, [searchParams, authToken]); // Re-run if params or token change
+
+     // --- Reset Form State Function ---
+     const resetFormState = () => {
+        setProposalId(null);
+        setEventTitle('');
+        setEventDescription('');
+        setStartDate(null);
+        setEndDate(null);
+        setDurationEvent('');
+        setCategory('');
+        setPastEvents('');
+        setRelevantDetails('');
+        setExpectedParticipants('');
+        setSelectedParticipantCategories([]);
+        setSelectedStudentCategories([]);
+        setFundUniversity('');
+        setFundRegistration('');
+        setFundOther('');
+        // Reset Chief Guest Fields
+        setChiefGuestName('');
+        setChiefGuestDesignation('');
+        setChiefGuestAddress('');
+        setChiefGuestPhone('');
+        setChiefGuestPan('');
+        setChiefGuestReason('');
+        setHotelName('');
+        setHotelAddress('');
+        setHotelDuration('');
+        setHotelType('srm');
+        setTravelName('');
+        setTravelAddress('');
+        setTravelDuration('');
+        setTravelType('srm');
+        // Reset Rows
+        nextLocalIdSuffix.current = 1;
+        setDetailedBudgetRows([{ localId: generateLocalId(), category: '', sub_category: '', type: null, quantity: '', cost: '', amount: '' }]);
+        setSponsorshipRows([{ localId: generateLocalId(), category: '', amount: '', reward: '', mode: '', about: '', benefit: '' }]);
+        setFormErrors({});
+        setIsLoading(false);
+     };
 
 
-    // --- Handler Functions (No change needed in logic) ---
-    // These functions don't depend on the auth context directly
+    // --- Handler Functions ---
     const addDetailedBudgetRow = () => setDetailedBudgetRows(prev => [...prev, { localId: generateLocalId(), category: '', sub_category: '', type: null, quantity: '', cost: '', amount: '' }]);
     const deleteDetailedBudgetRow = (idToDelete: string) => setDetailedBudgetRows(prev => prev.filter(row => row.localId !== idToDelete));
     const handleDetailedBudgetChange = (idToUpdate: string, field: keyof DetailedBudgetRow, value: string | 'Domestic' | 'International' | null) => {
@@ -185,11 +303,14 @@ export default function EventProposalForm() {
                 if (field === 'quantity' || field === 'cost') {
                     const quantity = parseFloat(updatedRow.quantity) || 0;
                     const cost = parseFloat(updatedRow.cost) || 0;
-                    updatedRow.amount = (quantity * cost).toString();
+                    updatedRow.amount = (quantity * cost).toFixed(2); // Use toFixed for consistency
                 }
-                 if (field === 'type') {
-                     updatedRow.type = value as 'Domestic' | 'International' | null;
-                 }
+                if (field === 'type') {
+                    updatedRow.type = value as 'Domestic' | 'International' | null;
+                }
+                 if (field === 'category') { // Reset subcategory when main category changes
+                    updatedRow.sub_category = '';
+                }
                 return updatedRow;
             }
             return row;
@@ -200,74 +321,143 @@ export default function EventProposalForm() {
     const deleteSponsorshipRow = (idToDelete: string) => setSponsorshipRows(prev => prev.filter(row => row.localId !== idToDelete));
     const handleSponsorshipChange = (idToUpdate: string, field: keyof SponsorshipRow, value: string) => setSponsorshipRows(prev => prev.map(row => row.localId === idToUpdate ? { ...row, [field]: value } : row));
 
-    const addChiefGuestRow = () => setChiefGuestRows(prev => [...prev, { localId: generateLocalId(), name: '', designation: '', address: '', phone: '', pan: '', reason: '' }]);
-    const deleteChiefGuestRow = (idToDelete: string) => { if (chiefGuestRows.length > 1) { setChiefGuestRows(prev => prev.filter(row => row.localId !== idToDelete)); } else { alert("At least one chief guest entry is needed."); } };
-    const handleChiefGuestChange = (idToUpdate: string, field: keyof ChiefGuestRow, value: string) => setChiefGuestRows(prev => prev.map(row => row.localId === idToUpdate ? { ...row, [field]: value } : row));
+    // Simplified handlers for single chief guest
+    // No add/delete needed for chief guest rows anymore
 
     const toggleParticipantCategory = (category: string) => setSelectedParticipantCategories(prev => prev.includes(category) ? prev.filter(c => c !== category) : [...prev, category]);
     const toggleStudentCategory = (category: string) => setSelectedStudentCategories(prev => prev.includes(category) ? prev.filter(c => c !== category) : [...prev, category]);
 
-    // --- Form Submission (Corrected Structure) ---
+    // --- Form Validation ---
+    const validateForm = (): boolean => {
+        const errors: Record<string, string> = {};
+        if (!eventTitle.trim()) errors.eventTitle = "Event Title is required.";
+        if (!eventDescription.trim()) errors.eventDescription = "Event Description is required.";
+        if (!category) errors.category = "Event Category is required.";
+        if (!startDate) errors.startDate = "Start Date & Time is required.";
+        if (!endDate) errors.endDate = "End Date & Time is required.";
+        if (startDate && endDate && endDate < startDate) errors.endDate = "End date cannot be before start date.";
+        // Chief Guest Validation
+        if (!chiefGuestName.trim()) errors.chiefGuestName = "Chief Guest Name is required.";
+        if (!chiefGuestDesignation.trim()) errors.chiefGuestDesignation = "Chief Guest Designation is required.";
+        if (!chiefGuestAddress.trim()) errors.chiefGuestAddress = "Chief Guest Address is required.";
+        if (!chiefGuestPhone.trim()) errors.chiefGuestPhone = "Chief Guest Phone is required."; // Add more specific phone validation if needed
+        if (!chiefGuestPan.trim()) errors.chiefGuestPan = "Chief Guest PAN is required."; // Add PAN format validation if needed
+        if (!chiefGuestReason.trim()) errors.chiefGuestReason = "Reason for Inviting is required.";
+        // Accommodation & Travel Validation
+        if (!hotelName.trim()) errors.hotelName = "Hotel Name is required.";
+        if (!hotelAddress.trim()) errors.hotelAddress = "Hotel Address is required.";
+        if (!hotelDuration.trim() || parseInt(hotelDuration) < 0) errors.hotelDuration = "Valid Hotel Duration (days) is required.";
+        if (!travelName.trim()) errors.travelName = "Travel Mode/Name is required.";
+        if (!travelAddress.trim()) errors.travelAddress = "Travel To/From Address is required.";
+        if (!travelDuration.trim() || parseInt(travelDuration) < 0) errors.travelDuration = "Valid Travel Duration (days/trips) is required.";
+        // Detailed Budget Validation
+        if (detailedBudgetRows.length === 0) {
+            errors.detailedBudget = "At least one budget item is required.";
+        } else {
+            detailedBudgetRows.forEach((row, index) => {
+                if (!row.category.trim()) errors[`budget_category_${row.localId}`] = `Category is required for row ${index + 1}.`;
+                if (!row.sub_category.trim()) errors[`budget_sub_category_${row.localId}`] = `Subcategory is required for row ${index + 1}.`;
+                if (!row.quantity.trim() || parseFloat(row.quantity) < 0) errors[`budget_quantity_${row.localId}`] = `Valid quantity is required for row ${index + 1}.`;
+                if (!row.cost.trim() || parseFloat(row.cost) < 0) errors[`budget_cost_${row.localId}`] = `Valid cost is required for row ${index + 1}.`;
+            });
+        }
+        // Sponsorship Validation
+        if (sponsorshipRows.length === 0) {
+             errors.sponsorship = "At least one sponsorship item is required.";
+        } else {
+             sponsorshipRows.forEach((row, index) => {
+                if (!row.category.trim()) errors[`sponsor_category_${row.localId}`] = `Category is required for sponsor ${index + 1}.`;
+                if (!row.amount.trim() || parseFloat(row.amount) < 0) errors[`sponsor_amount_${row.localId}`] = `Valid amount is required for sponsor ${index + 1}.`;
+                if (!row.reward.trim()) errors[`sponsor_reward_${row.localId}`] = `Reward is required for sponsor ${index + 1}.`;
+                if (!row.mode.trim()) errors[`sponsor_mode_${row.localId}`] = `Mode is required for sponsor ${index + 1}.`;
+                if (!row.about.trim()) errors[`sponsor_about_${row.localId}`] = `About Sponsor is required for sponsor ${index + 1}.`;
+                if (!row.benefit.trim()) errors[`sponsor_benefit_${row.localId}`] = `Benefit/Output is required for sponsor ${index + 1}.`;
+            });
+        }
+
+        setFormErrors(errors);
+        return Object.keys(errors).length === 0; // True if no errors
+    };
+
+
+    // --- Form Submission ---
      const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
          e.preventDefault();
-         // --- Use state variables for user and token ---
+         setFormErrors({}); // Clear previous errors
+         if (!validateForm()) {
+            alert("Please fix the errors indicated on the form.");
+            // Find the first error element and scroll to it
+            const firstErrorKey = Object.keys(formErrors)[0];
+            const firstErrorElement = document.getElementById(firstErrorKey) || document.querySelector(`[name*="${firstErrorKey}"]`);
+             if (firstErrorElement) {
+                 firstErrorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+             }
+            return;
+         }
+
          if (!currentUser || !authToken) {
              alert("Authentication Error: User details or token not found. Please log in again.");
              console.error("Submit Error: currentUser or authToken missing.");
              return;
          }
-         // --- Keep other validation checks ---
-         if (!startDate || !endDate) { alert("Please select the event start and end dates."); return; }
-         if (endDate < startDate) { alert("Event end date cannot be before the start date."); return; }
-         if (!eventTitle || !eventDescription || !category) { alert("Please fill in the required Event Details (Title, Description, Category)."); return; }
-         const chiefGuestToSend = chiefGuestRows[0];
-         if (!chiefGuestToSend || !chiefGuestToSend.name || !chiefGuestToSend.designation || !chiefGuestToSend.address || !chiefGuestToSend.phone || !chiefGuestToSend.pan || !chiefGuestToSend.reason) { alert("Please complete all required Chief Guest details."); return; }
-         if (!hotelName || !hotelAddress || !hotelDuration || !hotelType || !travelName || !travelAddress || !travelDuration || !travelType) { alert("Please complete all required Accommodation & Travel details for the Chief Guest."); return; }
-         if (detailedBudgetRows.length === 0 || detailedBudgetRows.some(r => !r.category || !r.sub_category || !r.quantity || !r.cost)) { alert("Please add at least one Detailed Budget item and fill in its required fields (Category, Subcategory, Quantity, Cost)."); return; }
-         if (sponsorshipRows.length === 0 || sponsorshipRows.some(r => !r.category || !r.amount || !r.reward || !r.mode || !r.about || !r.benefit)) { alert("Please add at least one Sponsorship item and fill in all its fields."); return; }
-         // --- End validation checks ---
+         setIsLoading(true); // Indicate loading state
 
-        // ***** CORRECTED STRUCTURE *****
+        // ***** CORRECTED API DATA STRUCTURE *****
         const proposalData = {
-             title: eventTitle, description: eventDescription,
-            start: startDate.toISOString(), end: endDate.toISOString(), category: category,
-            past: pastEvents || null, other: relevantDetails || null,
-            participant_expected: expectedParticipants ? parseInt(expectedParticipants, 10) : null,
-            participant_categories: selectedParticipantCategories.length > 0 ? selectedParticipantCategories : null,
-            fund_uni: fundUniversity ? parseInt(fundUniversity, 10) : null,
-            fund_registration: fundRegistration ? parseInt(fundRegistration, 10) : null,
-            fund_sponsor: fundSponsorship ? parseInt(fundSponsorship, 10) : null, // Still calculated locally
-            fund_others: fundOther ? parseInt(fundOther, 10) : null,
-            chief: {
-                // Guest Details
-                name: chiefGuestToSend.name,
-                designation: chiefGuestToSend.designation,
-                address: chiefGuestToSend.address,
-                phone: chiefGuestToSend.phone,
-                pan: chiefGuestToSend.pan,
-                reason: chiefGuestToSend.reason,
-                // --- NESTED Hotel Details ---
-                hotel_name: hotelName,
-                hotel_address: hotelAddress,
-                hotel_duration: parseInt(hotelDuration, 10) || 0,
-                hotel_type: hotelType,
-                // --- NESTED Travel Details ---
-                travel_name: travelName,
-                travel_address: travelAddress,
-                travel_duration: parseInt(travelDuration, 10) || 0,
-                travel_type: travelType,
-            },
-            items: detailedBudgetRows.map(({ localId, ...rest }) => ({ ...rest, type: rest.type, quantity: parseInt(rest.quantity, 10) || 0, cost: parseInt(rest.cost, 10) || 0, amount: parseInt(rest.amount, 10) || 0 })),
-            sponsors: sponsorshipRows.map(({ localId, ...rest }) => ({ ...rest, amount: parseInt(rest.amount, 10) || 0 })),
+             title: eventTitle.trim(),
+             description: eventDescription.trim(),
+             start: startDate!.toISOString(), // Use non-null assertion as validation passed
+             end: endDate!.toISOString(), // Use non-null assertion as validation passed
+             category: category,
+             past: pastEvents.trim() || null,
+             other: relevantDetails.trim() || null,
+             participant_expected: expectedParticipants ? parseInt(expectedParticipants, 10) : null,
+             participant_categories: selectedParticipantCategories.length > 0 ? selectedParticipantCategories : null,
+             fund_uni: fundUniversity ? parseInt(fundUniversity, 10) : null, // API expects integer or null
+             fund_registration: fundRegistration ? parseInt(fundRegistration, 10) : null,
+             fund_sponsor: totalSponsorshipAmount > 0 ? parseInt(totalSponsorshipAmount.toString(), 10) : null, // Send parsed int or null
+             fund_others: fundOther ? parseInt(fundOther, 10) : null,
+             // --- CHIEFS ARRAY ---
+             chiefs: [
+                 {
+                     name: chiefGuestName.trim(),
+                     designation: chiefGuestDesignation.trim(),
+                     address: chiefGuestAddress.trim(),
+                     phone: chiefGuestPhone.trim(),
+                     pan: chiefGuestPan.trim(),
+                     reason: chiefGuestReason.trim(),
+                     hotel_name: hotelName.trim(),
+                     hotel_address: hotelAddress.trim(),
+                     hotel_duration: parseInt(hotelDuration, 10) || 0, // Default to 0 if parse fails
+                     hotel_type: hotelType,
+                     travel_name: travelName.trim(),
+                     travel_address: travelAddress.trim(),
+                     travel_duration: parseInt(travelDuration, 10) || 0, // Default to 0 if parse fails
+                     travel_type: travelType,
+                 }
+             ],
+             // --- ITEMS ARRAY ---
+             items: detailedBudgetRows.map(({ localId, ...rest }) => ({
+                ...rest,
+                type: rest.type, // Already Domestic | International | null
+                quantity: parseInt(rest.quantity, 10) || 0,
+                cost: parseInt(rest.cost, 10) || 0, // Assuming API wants integer cost
+                amount: parseInt(rest.amount, 10) || 0, // API expects integer amount
+             })),
+             // --- SPONSORS ARRAY ---
+             sponsors: sponsorshipRows.map(({ localId, ...rest }) => ({
+                ...rest,
+                amount: parseInt(rest.amount, 10) || 0, // API expects integer amount
+             })),
              student_categories: selectedStudentCategories.length > 0 ? selectedStudentCategories : null,
         };
-        // ***** END CORRECTED STRUCTURE *****
+        // ***** END CORRECTED API DATA STRUCTURE *****
 
-        console.log("Submitting Proposal Data:", JSON.stringify(proposalData, null, 2)); // Log the corrected structure
-        // Determine API endpoint (Create vs Update)
+        console.log("Submitting Proposal Data:", JSON.stringify(proposalData, null, 2));
+
         const apiEndpoint = proposalId
-            ? `https://pmspreview-htfbhkdnffcpf5dz.centralindia-01.azurewebsites.net/api/faculty/proposals/${proposalId}` // Update endpoint
-            : 'https://pmspreview-htfbhkdnffcpf5dz.centralindia-01.azurewebsites.net/api/faculty/proposals'; // Create endpoint
+            ? `https://pmspreview-htfbhkdnffcpf5dz.centralindia-01.azurewebsites.net/api/faculty/proposals/${proposalId}`
+            : 'https://pmspreview-htfbhkdnffcpf5dz.centralindia-01.azurewebsites.net/api/faculty/proposals';
         const apiMethod = proposalId ? 'PUT' : 'POST';
 
         try {
@@ -275,164 +465,248 @@ export default function EventProposalForm() {
                 method: apiMethod,
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${authToken}`, // Use authToken from state
+                    'Authorization': `Bearer ${authToken}`,
                     'Accept': 'application/json'
                 },
                 body: JSON.stringify(proposalData),
             });
+
             if (!response.ok) {
-                // Keep your detailed error handling
-                const errorText = await response.text(); console.error('HTTP Error:', response.status, response.statusText); console.error('Error Body (raw):', errorText); let errorJson = null; let alertMessage = `Error: ${response.status} ${response.statusText}.`; try { errorJson = JSON.parse(errorText); console.error('Error Body (parsed):', errorJson); if(errorJson?.message && errorJson?.errors) { alertMessage += ` ${errorJson.message}. Check fields.`; } else if (errorJson?.message) { alertMessage += ` ${errorJson.message}`; } } catch (parseError) { console.log("Response body not valid JSON."); if (errorText.toLowerCase().includes("route [login] not defined")) { alertMessage += " Authentication failed. Try login again."; } else if (errorText.toLowerCase().includes("<html")) { alertMessage += " Server returned an HTML error page. Check console/network tab."; } else if (errorText.length < 200) { alertMessage += ` Server response: ${errorText}`; } else { alertMessage += " Unexpected server error. Check console."; } } alert(alertMessage);
+                const errorText = await response.text();
+                console.error('HTTP Error:', response.status, response.statusText);
+                console.error('Error Body (raw):', errorText);
+                let errorJson: any = null;
+                let alertMessage = `Error ${response.status}: ${response.statusText}.`;
+                try {
+                    errorJson = JSON.parse(errorText);
+                    console.error('Error Body (parsed):', errorJson);
+                     // More specific 422 handling
+                     if (response.status === 422 && errorJson?.errors) {
+                        alertMessage = "Submission failed due to validation errors. Please check the form fields.";
+                         const backendErrors: Record<string, string> = {};
+                         for (const field in errorJson.errors) {
+                             // Attempt to map backend field names (e.g., 'chiefs.0.name') to frontend state/ids
+                             // This mapping might need refinement based on exact error keys from backend
+                             let frontendKey = field;
+                             if (field.startsWith('chiefs.0.')) frontendKey = `chiefGuest${field.charAt(9).toUpperCase() + field.slice(10)}`;
+                             else if (field.startsWith('items.')) frontendKey = `budget_item_${field.split('.')[1]}`; // Needs more work to map index to localId
+                             else if (field.startsWith('sponsors.')) frontendKey = `sponsor_item_${field.split('.')[1]}`; // Needs more work
+                             else frontendKey = field.replace('.', '_'); // Basic fallback
+
+                            backendErrors[frontendKey] = errorJson.errors[field][0]; // Take the first error message
+                         }
+                         setFormErrors(prev => ({ ...prev, ...backendErrors })); // Merge backend errors
+                         console.log("Backend validation errors mapped:", backendErrors);
+                     } else if (errorJson?.message) {
+                         alertMessage += ` ${errorJson.message}`;
+                     }
+                } catch (parseError) {
+                    console.log("Response body not valid JSON.");
+                    if (errorText.toLowerCase().includes("route [login] not defined")) {
+                        alertMessage += " Authentication failed. Please log in again.";
+                    } else if (errorText.toLowerCase().includes("<html")) {
+                        alertMessage += " Server returned an HTML error page. Check console/network tab for details.";
+                    } else if (errorText.length < 200) {
+                        alertMessage += ` Server response: ${errorText}`;
+                    } else {
+                        alertMessage += " An unexpected server error occurred.";
+                    }
+                }
+                alert(alertMessage);
             } else {
-                 try { const data = await response.json(); console.log('Success:', data); alert(`Proposal ${proposalId ? 'Updated' : 'Submitted'} Successfully! Response: ${JSON.stringify(data)}`); /* Consider redirecting or resetting form: resetFormState(); */ } catch (jsonError) { console.error('Error parsing success response:', jsonError); /* Handle cases where success is 200 OK but no JSON body */ if(response.status === 200 || response.status === 201) { alert(`Proposal ${proposalId ? 'Updated' : 'Submitted'} Successfully!`); } else { const successText = await response.text(); console.error('Success Body (raw):', successText); alert('Submitted, but response format unexpected. See console.'); } }
+                // Success
+                try {
+                    const data = await response.json();
+                    console.log('Success:', data);
+                    alert(`Proposal ${proposalId ? 'Updated' : 'Submitted'} Successfully!`);
+                    resetFormState(); // Clear form on success
+                    // Optional: Redirect user e.g., router.push('/faculty/proposals');
+                } catch (jsonError) {
+                     console.error('Error parsing success response:', jsonError);
+                     if(response.status === 200 || response.status === 201) {
+                         alert(`Proposal ${proposalId ? 'Updated' : 'Submitted'} Successfully!`);
+                         resetFormState();
+                     } else {
+                         const successText = await response.text(); // Read raw text if JSON fails
+                         console.error('Success Body (raw):', successText);
+                         alert('Submission successful, but response format unexpected. See console.');
+                     }
+                }
             }
         } catch (error) {
-            console.error('Fetch API Call Error:', error); if (error instanceof TypeError) { alert("Network error. Please check your connection or the API server status."); } else { alert("An unexpected client-side error occurred during submission. See console."); }
+            console.error('Fetch API Call Error:', error);
+            if (error instanceof TypeError) { // Network error etc.
+                 alert("Network error or server unavailable. Please check your connection or try again later.");
+            } else {
+                 alert("An unexpected client-side error occurred during submission. Check the console for details.");
+            }
+        } finally {
+            setIsLoading(false); // Stop loading indicator
         }
     };
 
     // --- JSX ---
     return (
         <>
-            {/* Background Container */}
-            <div
-                style={{ backgroundImage: "url('/SRMIST-BANNER.jpg')", backgroundSize: "cover", backgroundAttachment: "fixed", backgroundPosition: "center" }}
-                className="min-h-screen w-full"
-            >
+            {/* Background Container - Simplified */}
+            <div className="bg-gray-50 min-h-screen w-full">
                 {/* Form Container */}
-                <div className="bg-gradient-to-br from-white/80 via-white/90 to-blue-50/80 backdrop-blur-sm shadow-sm min-h-screen flex justify-center items-start py-12 px-4">
-                    <div className="card bg-white shadow-lg border border-gray-200 rounded-2xl max-w-7xl w-full mx-auto">
-                        <div className="card-body p-10 md:p-12">
+                <div className="flex justify-center items-start py-12 px-4">
+                    <div className="bg-white shadow-lg border border-gray-200 rounded-xl max-w-7xl w-full mx-auto">
+                        <div className="card-body p-8 md:p-12">
 
                             {/* Form Title */}
                             <h2 className="text-3xl md:text-4xl font-bold text-gray-800 text-center mb-10">
                                 {proposalId ? 'Edit Event Proposal' : 'Submit Event Proposal'}
                             </h2>
 
-                            {/* Convener Info Box - Uses currentUser from state */}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-4 mb-8 p-6 bg-blue-50 rounded-lg border border-blue-200 shadow-sm">
-                                <div><label className="block text-gray-600 text-sm font-semibold mb-1">Convener Name</label><p className="text-gray-800 font-medium break-words">{currentUser?.name || 'N/A'}</p></div>
-                                <div><label className="block text-gray-600 text-sm font-semibold mb-1">Convener Email</label><p className="text-gray-800 font-medium break-words">{currentUser?.email || 'N/A'}</p></div>
-                                <div><label className="block text-gray-600 text-sm font-semibold mb-1">Department</label><p id="organizing-department" className="text-gray-800 font-medium break-words">{currentUser?.department || 'N/A'}</p></div>
+                            {/* Convener Info Box - Subtle styling */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-4 mb-10 p-5 bg-blue-50 rounded-lg border border-blue-100">
+                                <div><label className="block text-gray-600 text-sm font-medium mb-1">Convener Name</label><p className="text-gray-900 break-words">{currentUser?.name || 'Loading...'}</p></div>
+                                <div><label className="block text-gray-600 text-sm font-medium mb-1">Convener Email</label><p className="text-gray-900 break-words">{currentUser?.email || 'Loading...'}</p></div>
+                                <div><label className="block text-gray-600 text-sm font-medium mb-1">Department</label><p id="organizing-department" className="text-gray-900 break-words">{currentUser?.department || 'Loading...'}</p></div>
                             </div>
 
                             {/* Form Start */}
-                            <form className="space-y-10" onSubmit={handleSubmit}>
+                            <form className="space-y-10" onSubmit={handleSubmit} noValidate>
 
                                 {/* --- Section: Event Details --- */}
-                                <div className="bg-white border border-gray-200 p-6 rounded-lg shadow-sm">
-                                    <SectionHeader title="Event Details" icon={<Info size={24} />} required />
+                                <section>
+                                    <SectionHeader title="Event Details" icon={<Info size={22} />} required />
                                     <div className="space-y-5">
-                                        {/* Event Title */}
-                                        <div>
-                                            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="event-title">
-                                                Event Title <span className="text-red-500">*</span>
-                                            </label>
-                                            <input type="text" id="event-title" placeholder="Enter Event Title" className="input input-bordered w-full" value={eventTitle} onChange={(e) => setEventTitle(e.target.value)} required />
-                                        </div>
+                                        <InputField
+                                            label="Event Title"
+                                            id="event-title"
+                                            placeholder="Enter Event Title"
+                                            value={eventTitle}
+                                            onChange={(e) => setEventTitle(e.target.value)}
+                                            error={formErrors.eventTitle}
+                                            required
+                                            maxLength={255} // Optional: Match DB limits
+                                        />
+                                         <TextAreaField
+                                            label="Event Description"
+                                            id="event-description"
+                                            placeholder="Provide a detailed description of the event"
+                                            value={eventDescription}
+                                            onChange={(e) => setEventDescription(e.target.value)}
+                                            error={formErrors.eventDescription}
+                                            required
+                                        />
+                                         <SelectField
+                                            label="Event Category"
+                                            id="category"
+                                            value={category}
+                                            onChange={(e) => setCategory(e.target.value as typeof EVENT_CATEGORIES[number])}
+                                            error={formErrors.category}
+                                            required
+                                        >
+                                            <option value="" disabled>Select Category</option>
+                                            {EVENT_CATEGORIES.map(cat => (<option key={cat} value={cat}>{cat.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</option>))}
+                                        </SelectField>
 
-                                        {/* Event Description */}
-                                        <div>
-                                            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="event-description">
-                                                Event Description <span className="text-red-500">*</span>
-                                            </label>
-                                            <textarea id="event-description" rows={4} placeholder="Provide a detailed description of the event" className="textarea textarea-bordered w-full" value={eventDescription} onChange={(e) => setEventDescription(e.target.value)} required />
-                                        </div>
-
-                                        {/* Category */}
-                                        <div>
-                                            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="category">
-                                                Event Category <span className="text-red-500">*</span>
-                                            </label>
-                                            <select id="category" className="select select-bordered w-full" value={category} onChange={(e) => setCategory(e.target.value as typeof EVENT_CATEGORIES[number])} required>
-                                                <option value="" disabled>Select Category</option>
-                                                {EVENT_CATEGORIES.map(cat => (<option key={cat} value={cat}>{cat.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</option>))}
-                                            </select>
-                                        </div>
-
-                                        {/* Event Schedule */}
+                                        {/* Event Schedule - Grouped */}
                                         <div className="bg-gray-50 p-4 rounded-md border border-gray-200">
-                                            <h4 className="text-md font-bold text-gray-800 flex items-center gap-2 mb-3">
-                                                <CalendarDays className="text-blue-600" size={20} /> Event Schedule <span className="text-red-500">*</span>
+                                            <h4 className="text-base font-medium text-gray-800 flex items-center gap-2 mb-3">
+                                                <CalendarDays className="text-blue-600" size={18} /> Event Schedule <span className="text-red-500">*</span>
                                             </h4>
-                                            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                                            <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
                                                 <div className="flex-1 w-full">
-                                                    <label className="block text-gray-700 text-sm font-semibold mb-1" htmlFor="start-date">Start Date & Time</label>
+                                                    <label className="block text-gray-700 text-sm font-medium mb-1" htmlFor="start-date">Start Date & Time</label>
                                                     <DatePicker
                                                         id="start-date"
                                                         selected={startDate}
-                                                        onChange={(date) => setStartDate(date || undefined)}
+                                                        onChange={(date: Date | null) => setStartDate(date)}
                                                         showTimeSelect
                                                         timeIntervals={15}
                                                         dateFormat="Pp" // Locale-sensitive date and time
-                                                        className="input input-bordered w-full"
+                                                        className={`input input-bordered w-full bg-white text-gray-900 ${formErrors.startDate ? 'border-red-500' : 'border-gray-300'}`}
                                                         placeholderText="Select start date & time"
-                                                        wrapperClassName="w-full" // Ensure wrapper takes full width
+                                                        wrapperClassName="w-full"
                                                         required
+                                                        autoComplete='off'
                                                     />
+                                                    {formErrors.startDate && <p className="mt-1 text-xs text-red-600">{formErrors.startDate}</p>}
                                                 </div>
                                                 <div className="flex-1 w-full">
-                                                    <label className="block text-gray-700 text-sm font-semibold mb-1" htmlFor="end-date">End Date & Time</label>
+                                                    <label className="block text-gray-700 text-sm font-medium mb-1" htmlFor="end-date">End Date & Time</label>
                                                     <DatePicker
                                                         id="end-date"
                                                         selected={endDate}
-                                                        onChange={(date) => setEndDate(date)}
+                                                        onChange={(date: Date | null) => setEndDate(date)}
                                                         showTimeSelect
                                                         timeIntervals={15}
                                                         dateFormat="Pp"
-                                                        className="input input-bordered w-full"
+                                                        className={`input input-bordered w-full bg-white text-gray-900 ${formErrors.endDate ? 'border-red-500' : 'border-gray-300'}`}
                                                         placeholderText="Select end date & time"
                                                         wrapperClassName="w-full"
                                                         required
-                                                        minDate={startDate} // Prevent end date before start date
-                                                        filterDate={(date) => !startDate || date >= startDate} // Disable past dates relative to start
+                                                        minDate={startDate || undefined} // Dynamically set minDate
+                                                        filterTime={(time) => { // Ensure end time is after start time on the same day
+                                                            if (!startDate || !endDate || startDate.toDateString() !== endDate.toDateString()) {
+                                                                return true; // Allow any time if different days or start date not set
+                                                            }
+                                                            return time.getTime() > startDate.getTime();
+                                                        }}
+                                                        autoComplete='off'
                                                     />
+                                                    {formErrors.endDate && <p className="mt-1 text-xs text-red-600">{formErrors.endDate}</p>}
                                                 </div>
                                             </div>
-                                            {durationEvent && !durationEvent.startsWith("End date") && (
-                                                <p className="mt-3 text-center text-sm text-gray-700 font-medium bg-blue-100 px-4 py-2 rounded-lg">
-                                                    ⏳ Duration: {durationEvent}
+                                             {durationEvent && !durationEvent.includes("cannot be before") && (
+                                                <p className="mt-3 text-center text-sm text-gray-700 font-medium bg-blue-100 px-3 py-1.5 rounded-md">
+                                                    Duration: {durationEvent}
                                                 </p>
                                             )}
-                                            {durationEvent && durationEvent.startsWith("End date") && (
-                                                <p className="mt-3 text-center text-sm text-red-700 font-semibold bg-red-100 px-4 py-2 rounded-lg">
-                                                    ⚠️ {durationEvent}
+                                             {durationEvent && durationEvent.includes("cannot be before") && (
+                                                <p className="mt-3 text-center text-sm text-red-700 font-medium bg-red-100 px-3 py-1.5 rounded-md flex items-center justify-center gap-1">
+                                                   <AlertCircle size={14} /> {durationEvent}
                                                 </p>
                                             )}
                                         </div>
 
                                         {/* Optional Details */}
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                                            <div>
-                                                <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="past-events">Past Relevant Events (Optional)</label>
-                                                <textarea id="past-events" rows={3} placeholder="e.g., Conference Name (Year), Workshop Title (Year)" className="textarea textarea-bordered w-full" value={pastEvents} onChange={(e) => setPastEvents(e.target.value)}></textarea>
-                                            </div>
-                                            <div>
-                                                <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="relevant-details">Other Relevant Details (Optional)</label>
-                                                <textarea id="relevant-details" rows={3} placeholder="Any other supporting information or context" className="textarea textarea-bordered w-full" value={relevantDetails} onChange={(e) => setRelevantDetails(e.target.value)}></textarea>
-                                            </div>
+                                            <TextAreaField
+                                                label="Past Relevant Events (Optional)"
+                                                id="past-events"
+                                                placeholder="e.g., Conference Name (Year), Workshop Title (Year)"
+                                                value={pastEvents}
+                                                onChange={(e) => setPastEvents(e.target.value)}
+                                            />
+                                            <TextAreaField
+                                                label="Other Relevant Details (Optional)"
+                                                id="relevant-details"
+                                                placeholder="Any other supporting information or context"
+                                                value={relevantDetails}
+                                                onChange={(e) => setRelevantDetails(e.target.value)}
+                                            />
                                         </div>
                                     </div>
-                                </div>
+                                </section>
 
                                 {/* --- Section: Participants --- */}
-                                <div className="bg-white border border-gray-200 p-6 rounded-lg shadow-sm">
-                                    <SectionHeader title="Participants" icon={<Users size={24} />} />
+                                <section>
+                                    <SectionHeader title="Participants" icon={<Users size={22} />} />
                                     <div className="space-y-5">
-                                        <div>
-                                            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="expected-participants">
-                                                Total Expected Participants (Optional)
-                                            </label>
-                                            <input type="number" id="expected-participants" min="0" placeholder="Enter total number (e.g., 150)" className="input input-bordered w-full md:w-1/2" value={expectedParticipants} onChange={(e) => setExpectedParticipants(e.target.value)} />
-                                        </div>
-                                        <div className="mb-4">
-                                            <label className="block text-gray-700 text-sm font-bold mb-2">Category of Participants (Optional)</label>
-                                            <div className="flex flex-wrap gap-3">
+                                         <InputField
+                                            label="Total Expected Participants (Optional)"
+                                            id="expected-participants"
+                                            type="number"
+                                            min="0"
+                                            placeholder="Enter total number (e.g., 150)"
+                                            className="input input-bordered w-full md:w-1/2 bg-white text-gray-900 border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+                                            value={expectedParticipants}
+                                            onChange={(e) => setExpectedParticipants(e.target.value)}
+                                        />
+                                         <div className="mb-4">
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Category of Participants (Optional)</label>
+                                            <div className="flex flex-wrap gap-2">
                                                 {participantCategories.map((pCat) => (
                                                     <button
                                                         type="button"
                                                         key={pCat}
-                                                        className={`badge badge-lg font-medium cursor-pointer transition-all duration-200 ease-in-out px-4 py-3 ${selectedParticipantCategories.includes(pCat) ? 'badge-primary text-white' : 'badge-outline border-gray-300 hover:bg-blue-100 hover:border-blue-400'}`}
+                                                        className={`btn btn-sm normal-case font-medium rounded-full ${selectedParticipantCategories.includes(pCat) ? 'btn-primary text-white' : 'btn-outline border-gray-300 text-gray-700 hover:bg-blue-50 hover:border-blue-400 hover:text-blue-600'}`}
                                                         onClick={() => toggleParticipantCategory(pCat)}
                                                     >
                                                         {pCat}
@@ -440,15 +714,15 @@ export default function EventProposalForm() {
                                                 ))}
                                             </div>
                                         </div>
-                                        {selectedParticipantCategories.includes("Students (Category)") && (
-                                            <div className="mb-4 p-4 bg-blue-50 rounded border border-blue-200">
-                                                <label className="block text-gray-700 text-sm font-bold mb-2">Select Student Departments/Categories</label>
+                                         {selectedParticipantCategories.includes("Students (Category)") && (
+                                            <div className="mb-4 p-4 bg-blue-50 rounded-md border border-blue-200">
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">Select Student Departments/Categories (Optional)</label>
                                                 <div className="flex flex-wrap gap-2">
                                                     {studentCategories.map((sCat) => (
                                                         <button
                                                             type="button"
                                                             key={sCat}
-                                                            className={`badge badge-md font-medium cursor-pointer transition-all duration-200 ease-in-out px-3 py-2 ${selectedStudentCategories.includes(sCat) ? 'badge-info text-white' : 'badge-outline border-gray-300 hover:bg-blue-100 hover:border-blue-400'}`}
+                                                            className={`btn btn-xs normal-case font-medium rounded-full ${selectedStudentCategories.includes(sCat) ? 'bg-blue-500 border-blue-500 text-white hover:bg-blue-600' : 'btn-outline border-gray-300 text-gray-600 hover:bg-blue-50 hover:border-blue-400 hover:text-blue-600'}`}
                                                             onClick={() => toggleStudentCategory(sCat)}
                                                         >
                                                             {sCat}
@@ -458,243 +732,325 @@ export default function EventProposalForm() {
                                             </div>
                                         )}
                                      </div>
-                                </div>
+                                </section>
 
-                                {/* --- Section: Chief Guest --- */}
-                                <div className="bg-white border border-gray-200 p-6 rounded-lg shadow-sm">
-                                    <SectionHeader title="Chief Guest Details" icon={<UserCheck size={24} />} required />
-                                     <p className="text-sm text-gray-600 mb-4 -mt-4">Enter the details for the primary Chief Guest invited for the event.</p>
-                                     {chiefGuestRows.slice(0, 1).map((row) => { // Still mapping but only the first element
-                                         const uniqueDomIdSuffix = row.localId;
-                                         return (
-                                             <div key={row.localId} className="space-y-5">
-                                                {/* ... Chief Guest input fields remain the same ... */}
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                                                    <div>
-                                                        <label htmlFor={`${chiefGuestBaseId}-name-${uniqueDomIdSuffix}`} className="block text-gray-700 text-sm font-bold mb-1">Name <span className="text-red-500">*</span></label>
-                                                        <input type="text" id={`${chiefGuestBaseId}-name-${uniqueDomIdSuffix}`} placeholder="Full Name" className="input input-bordered w-full" value={row.name} onChange={(e) => handleChiefGuestChange(row.localId, 'name', e.target.value)} required />
-                                                    </div>
-                                                    <div>
-                                                        <label htmlFor={`${chiefGuestBaseId}-designation-${uniqueDomIdSuffix}`} className="block text-gray-700 text-sm font-bold mb-1">Designation <span className="text-red-500">*</span></label>
-                                                        <input type="text" id={`${chiefGuestBaseId}-designation-${uniqueDomIdSuffix}`} placeholder="e.g., CEO, Example Corp" className="input input-bordered w-full" value={row.designation} onChange={(e) => handleChiefGuestChange(row.localId, 'designation', e.target.value)} required />
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <label htmlFor={`${chiefGuestBaseId}-address-${uniqueDomIdSuffix}`} className="block text-gray-700 text-sm font-bold mb-1">Address <span className="text-red-500">*</span></label>
-                                                    <input type="text" id={`${chiefGuestBaseId}-address-${uniqueDomIdSuffix}`} placeholder="Full Address" className="input input-bordered w-full" value={row.address} onChange={(e) => handleChiefGuestChange(row.localId, 'address', e.target.value)} required />
-                                                </div>
-                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                                                    <div>
-                                                        <label htmlFor={`${chiefGuestBaseId}-phone-${uniqueDomIdSuffix}`} className="block text-gray-700 text-sm font-bold mb-1">Phone <span className="text-red-500">*</span></label>
-                                                        <input type="tel" id={`${chiefGuestBaseId}-phone-${uniqueDomIdSuffix}`} placeholder="Contact Number" className="input input-bordered w-full" value={row.phone} onChange={(e) => handleChiefGuestChange(row.localId, 'phone', e.target.value)} required />
-                                                    </div>
-                                                    <div>
-                                                        <label htmlFor={`${chiefGuestBaseId}-pan-${uniqueDomIdSuffix}`} className="block text-gray-700 text-sm font-bold mb-1">PAN <span className="text-red-500">*</span></label>
-                                                        <input type="text" id={`${chiefGuestBaseId}-pan-${uniqueDomIdSuffix}`} placeholder="PAN Number" className="input input-bordered w-full" value={row.pan} onChange={(e) => handleChiefGuestChange(row.localId, 'pan', e.target.value)} required />
-                                                    </div>
-                                                    <div>
-                                                        <label htmlFor={`${chiefGuestBaseId}-reason-${uniqueDomIdSuffix}`} className="block text-gray-700 text-sm font-bold mb-1">Reason for Inviting <span className="text-red-500">*</span></label>
-                                                        <input type="text" id={`${chiefGuestBaseId}-reason-${uniqueDomIdSuffix}`} placeholder="Brief reason" className="input input-bordered w-full" value={row.reason} onChange={(e) => handleChiefGuestChange(row.localId, 'reason', e.target.value)} required />
-                                                    </div>
-                                                </div>
-                                            </div>
-                                         );
-                                    })}
-                                </div>
+                                {/* --- Section: Chief Guest Details --- */}
+                                <section>
+                                    <SectionHeader title="Chief Guest Details" icon={<UserCheck size={22} />} required />
+                                    <p className="text-sm text-gray-600 mb-5 -mt-4">Enter the details for the primary Chief Guest invited for the event.</p>
+                                    <div className="space-y-5">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                            <InputField label="Name" id="chiefGuestName" placeholder="Full Name" value={chiefGuestName} onChange={(e) => setChiefGuestName(e.target.value)} error={formErrors.chiefGuestName} required maxLength={255}/>
+                                            <InputField label="Designation" id="chiefGuestDesignation" placeholder="e.g., CEO, Example Corp" value={chiefGuestDesignation} onChange={(e) => setChiefGuestDesignation(e.target.value)} error={formErrors.chiefGuestDesignation} required maxLength={255}/>
+                                        </div>
+                                         <InputField label="Address" id="chiefGuestAddress" placeholder="Full Address" value={chiefGuestAddress} onChange={(e) => setChiefGuestAddress(e.target.value)} error={formErrors.chiefGuestAddress} required maxLength={500}/>
+                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                                            <InputField label="Phone" id="chiefGuestPhone" type="tel" placeholder="Contact Number (e.g., +91 XXXXXXXXXX)" value={chiefGuestPhone} onChange={(e) => setChiefGuestPhone(e.target.value)} error={formErrors.chiefGuestPhone} required maxLength={20}/>
+                                            <InputField label="PAN" id="chiefGuestPan" placeholder="PAN Number" value={chiefGuestPan} onChange={(e) => setChiefGuestPan(e.target.value)} error={formErrors.chiefGuestPan} required maxLength={10}/>
+                                            <InputField label="Reason for Inviting" id="chiefGuestReason" placeholder="Brief reason" value={chiefGuestReason} onChange={(e) => setChiefGuestReason(e.target.value)} error={formErrors.chiefGuestReason} required maxLength={500}/>
+                                        </div>
+                                    </div>
+                                </section>
 
-                                {/* --- Section: Accommodation & Travel --- */}
-                                <div className="bg-white border border-gray-200 p-6 rounded-lg shadow-sm">
-                                    <SectionHeader title="Accommodation & Travel for Chief Guest" icon={<BedDouble size={24} />} required />
+                                {/* --- Section: Accommodation & Travel for Chief Guest --- */}
+                                <section>
+                                    <SectionHeader title="Accommodation & Travel (Chief Guest)" icon={<BedDouble size={22} />} required />
                                      <div className="space-y-6">
-                                         {/* ... Accommodation & Travel input fields remain the same ... */}
-                                         <div className="bg-gray-50 p-4 rounded border border-gray-200 grid grid-cols-1 md:grid-cols-4 gap-x-5 gap-y-4 items-end">
-                                               <div className="md:col-span-1">
-                                                    <label className="block text-gray-700 text-sm font-bold mb-1" htmlFor="hotel_name">Hotel Name <span className="text-red-500">*</span></label>
-                                                    <input type="text" id="hotel_name" className="input input-bordered input-sm w-full" value={hotelName} onChange={e => setHotelName(e.target.value)} required />
+                                         {/* Accommodation */}
+                                         <div className="bg-gray-50 p-4 rounded-md border border-gray-200 grid grid-cols-1 md:grid-cols-4 gap-x-5 gap-y-4 items-end">
+                                                <div className="md:col-span-1">
+                                                    <InputField label="Hotel Name" id="hotel_name" value={hotelName} onChange={e => setHotelName(e.target.value)} error={formErrors.hotelName} required maxLength={255}/>
                                                 </div>
                                               <div className="md:col-span-1">
-                                                    <label className="block text-gray-700 text-sm font-bold mb-1" htmlFor="hotel_address">Hotel Address <span className="text-red-500">*</span></label>
-                                                    <input type="text" id="hotel_address" className="input input-bordered input-sm w-full" value={hotelAddress} onChange={e => setHotelAddress(e.target.value)} required />
+                                                    <InputField label="Hotel Address" id="hotel_address" value={hotelAddress} onChange={e => setHotelAddress(e.target.value)} error={formErrors.hotelAddress} required maxLength={500}/>
                                                 </div>
                                               <div className="md:col-span-1">
-                                                    <label className="block text-gray-700 text-sm font-bold mb-1" htmlFor="hotel_duration">Duration (days) <span className="text-red-500">*</span></label>
-                                                    <input type="number" id="hotel_duration" min="0" placeholder="Days" className="input input-bordered input-sm w-full" value={hotelDuration} onChange={e => setHotelDuration(e.target.value)} required />
+                                                     <InputField label="Duration (days)" id="hotel_duration" type="number" min="0" placeholder="Days" value={hotelDuration} onChange={e => setHotelDuration(e.target.value)} error={formErrors.hotelDuration} required/>
                                                 </div>
                                               <div className="md:col-span-1">
-                                                    <label className="block text-gray-700 text-sm font-bold mb-1" htmlFor="hotel_type">Hotel Type <span className="text-red-500">*</span></label>
-                                                    <select id="hotel_type" className="select select-bordered select-sm w-full" value={hotelType} onChange={e => setHotelType(e.target.value as typeof HOTEL_TYPES[number])} required>
+                                                    <SelectField label="Hotel Type" id="hotel_type" value={hotelType} onChange={e => setHotelType(e.target.value as typeof HOTEL_TYPES[number])} error={formErrors.hotelType} required>
                                                         <option value="srm">SRM Arranged</option>
                                                         <option value="others">External/Other</option>
-                                                    </select>
+                                                    </SelectField>
                                                 </div>
                                           </div>
-                                          <div className="bg-gray-50 p-4 rounded border border-gray-200 grid grid-cols-1 md:grid-cols-4 gap-x-5 gap-y-4 items-end">
+                                          {/* Travel */}
+                                          <div className="bg-gray-50 p-4 rounded-md border border-gray-200 grid grid-cols-1 md:grid-cols-4 gap-x-5 gap-y-4 items-end">
                                               <div className="md:col-span-1">
-                                                  <label className="block text-gray-700 text-sm font-bold mb-1" htmlFor="travel_name">Travel Mode/Name <span className="text-red-500">*</span></label>
-                                                  <input type="text" id="travel_name" placeholder="e.g., Flight, Car" className="input input-bordered input-sm w-full" value={travelName} onChange={e => setTravelName(e.target.value)} required />
+                                                  <InputField label="Travel Mode/Name" id="travel_name" placeholder="e.g., Flight, Car" value={travelName} onChange={e => setTravelName(e.target.value)} error={formErrors.travelName} required maxLength={255}/>
                                               </div>
                                               <div className="md:col-span-1">
-                                                  <label className="block text-gray-700 text-sm font-bold mb-1" htmlFor="travel_address">Travel To/From Address <span className="text-red-500">*</span></label>
-                                                  <input type="text" id="travel_address" placeholder="Origin/Destination" className="input input-bordered input-sm w-full" value={travelAddress} onChange={e => setTravelAddress(e.target.value)} required />
+                                                   <InputField label="Travel To/From Address" id="travel_address" placeholder="Origin/Destination" value={travelAddress} onChange={e => setTravelAddress(e.target.value)} error={formErrors.travelAddress} required maxLength={500}/>
                                               </div>
                                               <div className="md:col-span-1">
-                                                  <label className="block text-gray-700 text-sm font-bold mb-1" htmlFor="travel_duration">Travel Duration (days/trips) <span className="text-red-500">*</span></label>
-                                                  <input type="number" id="travel_duration" min="0" placeholder="Count" className="input input-bordered input-sm w-full" value={travelDuration} onChange={e => setTravelDuration(e.target.value)} required />
+                                                    <InputField label="Travel Duration (days/trips)" id="travel_duration" type="number" min="0" placeholder="Count" value={travelDuration} onChange={e => setTravelDuration(e.target.value)} error={formErrors.travelDuration} required/>
                                               </div>
                                               <div className="md:col-span-1">
-                                                  <label className="block text-gray-700 text-sm font-bold mb-1" htmlFor="travel_type">Travel Type <span className="text-red-500">*</span></label>
-                                                  <select id="travel_type" className="select select-bordered select-sm w-full" value={travelType} onChange={e => setTravelType(e.target.value as typeof TRAVEL_TYPES[number])} required>
+                                                    <SelectField label="Travel Type" id="travel_type" value={travelType} onChange={e => setTravelType(e.target.value as typeof TRAVEL_TYPES[number])} error={formErrors.travelType} required>
                                                       <option value="srm">SRM Provided</option>
                                                       <option value="others">External/Other</option>
-                                                  </select>
+                                                  </SelectField>
                                               </div>
                                           </div>
                                      </div>
-                                 </div>
+                                 </section>
 
                                  {/* --- Section: Financial Details --- */}
-                                <div className="bg-white border border-gray-200 p-6 rounded-lg shadow-sm">
-                                    <SectionHeader title="Financial Details" icon={<DollarSign size={24} />} />
+                                <section>
+                                    <SectionHeader title="Financial Details" icon={<DollarSign size={22} />} required/>
                                     <div className="space-y-8">
                                         {/* Funding Sources */}
                                         <div>
-                                            <h4 className="text-lg font-semibold text-gray-800 mb-3">Funding Sources (₹) <span className="text-xs font-normal text-gray-500">(Optional)</span></h4>
-                                            {/* ... Funding source input fields remain the same ... */}
-                                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                                <div>
-                                                    <label className="block text-gray-700 text-sm font-bold mb-1" htmlFor="fund-university">University Fund</label>
-                                                    <input type="number" id="fund-university" min="0" placeholder="0" className="input input-bordered w-full" value={fundUniversity} onChange={(e) => setFundUniversity(e.target.value)} />
+                                            <h4 className="text-lg font-medium text-gray-800 mb-3">Funding Sources (₹) <span className="text-xs font-normal text-gray-500">(Optional Estimates)</span></h4>
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                               <InputField label="University Fund" id="fund-university" type="number" min="0" placeholder="0" value={fundUniversity} onChange={(e) => setFundUniversity(e.target.value)} />
+                                               <InputField label="Registration Fund" id="fund-registration" type="number" min="0" placeholder="0" value={fundRegistration} onChange={(e) => setFundRegistration(e.target.value)} />
+                                               <div>
+                                                     <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="fund-sponsorship">Sponsorship Fund</label>
+                                                     <input type="number" id="fund-sponsorship" value={fundSponsorship} className="input input-bordered w-full bg-gray-100 text-gray-700 border-gray-300 cursor-not-allowed" readOnly title="Auto-calculated from Sponsorship section" />
                                                 </div>
-                                                <div>
-                                                    <label className="block text-gray-700 text-sm font-bold mb-1" htmlFor="fund-registration">Registration Fund</label>
-                                                    <input type="number" id="fund-registration" min="0" placeholder="0" className="input input-bordered w-full" value={fundRegistration} onChange={(e) => setFundRegistration(e.target.value)} />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-gray-700 text-sm font-bold mb-1" htmlFor="fund-sponsorship">Sponsorship Fund</label>
-                                                    <input type="number" id="fund-sponsorship" min="0" placeholder="0" className="input input-bordered w-full bg-gray-100 cursor-not-allowed" value={fundSponsorship} readOnly title="Automatically calculated from Sponsorship section"/>
-                                                </div>
-                                                <div>
-                                                    <label className="block text-gray-700 text-sm font-bold mb-1" htmlFor="fund-other">Other Sources</label>
-                                                    <input type="number" id="fund-other" min="0" placeholder="0" className="input input-bordered w-full" value={fundOther} onChange={(e) => setFundOther(e.target.value)} />
-                                                </div>
+                                               <InputField label="Other Sources" id="fund-other" type="number" min="0" placeholder="0" value={fundOther} onChange={(e) => setFundOther(e.target.value)} />
                                             </div>
                                         </div>
 
                                         {/* Detailed Budget */}
                                         <div>
-                                            <h4 className="text-lg font-semibold text-gray-800 mb-2 flex items-center gap-2">
-                                               <FileText size={20} /> Detailed Budget <span className="text-red-500">*</span>
+                                            <h4 className="text-lg font-medium text-gray-800 mb-2 flex items-center gap-2">
+                                               <FileText size={18} /> Detailed Budget <span className="text-red-500 text-sm">*</span>
                                             </h4>
                                              <p className="text-sm text-gray-600 mb-4">Add all anticipated expense items for the event.</p>
-                                            <div className="overflow-x-auto border border-gray-200 rounded-lg shadow-sm">
-                                                {/* ... Detailed Budget Table remains the same ... */}
-                                                 <table className="table w-full table-zebra table-compact">
-                                                    <thead className="bg-gray-100">
-                                                        <tr className="text-left text-gray-600 uppercase text-xs tracking-wider">
-                                                            <th className="p-3">#</th>
-                                                            <th className="p-3 w-1/3">Category / Subcategory <span className="text-red-500">*</span></th>
-                                                            <th className="p-3 w-1/6 text-center">Type</th>
+                                             {formErrors.detailedBudget && <p className="mb-2 text-sm text-red-600">{formErrors.detailedBudget}</p>}
+                                            <div className="overflow-x-auto border border-gray-200 rounded-lg bg-white">
+                                                 <table className="table w-full table-auto">
+                                                    {/* --- Table Head --- */}
+                                                    <thead className="bg-gray-50">
+                                                        <tr className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                                                            <th className="p-3 w-10">#</th>
+                                                            <th className="p-3 min-w-[250px]">Category / Subcategory <span className="text-red-500">*</span></th>
+                                                            <th className="p-3 text-center">Location Type</th>
                                                             <th className="p-3 text-right">Qty <span className="text-red-500">*</span></th>
                                                             <th className="p-3 text-right">Cost/Unit (₹) <span className="text-red-500">*</span></th>
                                                             <th className="p-3 text-right">Total (₹)</th>
-                                                            <th className="p-3 text-center">Action</th>
+                                                            <th className="p-3 text-center w-16">Action</th>
                                                         </tr>
                                                     </thead>
+                                                    {/* --- Table Body --- */}
                                                     <tbody>
                                                         {detailedBudgetRows.map((row, index) => {
                                                             const uniqueDomIdSuffix = row.localId;
+                                                            const catError = formErrors[`budget_category_${row.localId}`];
+                                                            const subCatError = formErrors[`budget_sub_category_${row.localId}`];
+                                                            const qtyError = formErrors[`budget_quantity_${row.localId}`];
+                                                            const costError = formErrors[`budget_cost_${row.localId}`];
                                                             return (
-                                                                <tr key={row.localId} className="border-b border-gray-200 hover:bg-gray-50/50 text-sm">
-                                                                    <td className="p-2 font-medium text-gray-500">{index + 1}</td>
-                                                                    <td className="p-2 space-y-1.5">
+                                                                <tr key={row.localId} className="border-b border-gray-200 last:border-b-0 hover:bg-gray-50/50 text-sm">
+                                                                    <td className="p-2 font-medium text-gray-500 text-center align-top pt-3">{index + 1}</td>
+                                                                    {/* Category / Subcategory */}
+                                                                    <td className="p-2 space-y-1 align-top">
                                                                         <div>
                                                                             <label htmlFor={`${budgetBaseId}-main-category-${uniqueDomIdSuffix}`} className="sr-only">Category {index + 1}</label>
-                                                                            <select id={`${budgetBaseId}-main-category-${uniqueDomIdSuffix}`} className="select select-bordered select-xs w-full" value={row.category || ""} onChange={(e) => { handleDetailedBudgetChange(row.localId, 'category', e.target.value); handleDetailedBudgetChange(row.localId, 'sub_category', ''); }} required >
+                                                                            <select
+                                                                                id={`${budgetBaseId}-main-category-${uniqueDomIdSuffix}`}
+                                                                                className={`select select-bordered select-xs w-full bg-white text-gray-800 ${catError ? 'border-red-500' : 'border-gray-300'}`}
+                                                                                value={row.category || ""}
+                                                                                onChange={(e) => handleDetailedBudgetChange(row.localId, 'category', e.target.value)}
+                                                                                required
+                                                                            >
                                                                                 <option value="" disabled>Select Category</option>
-                                                                                <option value="Budgetary Expenditures">Budgetary Expenditures</option> <option value="Publicity">Publicity</option> <option value="General">General</option> <option value="Honorarium">Honorarium</option> <option value="Hospitality">Hospitality</option> <option value="Inaugural and Valedictory">Inaugural & Valedictory</option> <option value="Resource Materials">Resource Materials</option> <option value="Conference Paper Publication">Conference Paper Publication</option>
+                                                                                <option value="Budgetary Expenditures">Budgetary Expenditures</option>
+                                                                                <option value="Publicity">Publicity</option>
+                                                                                <option value="General">General</option>
+                                                                                <option value="Honorarium">Honorarium</option>
+                                                                                <option value="Hospitality">Hospitality</option>
+                                                                                <option value="Inaugural and Valedictory">Inaugural & Valedictory</option>
+                                                                                <option value="Resource Materials">Resource Materials</option>
+                                                                                <option value="Conference Paper Publication">Conference Paper Publication</option>
                                                                             </select>
+                                                                             {catError && <p className="mt-1 text-xs text-red-600">{catError}</p>}
                                                                         </div>
                                                                         <div>
                                                                             <label htmlFor={`${budgetBaseId}-sub-category-${uniqueDomIdSuffix}`} className="sr-only">Subcategory {index + 1}</label>
-                                                                            <select id={`${budgetBaseId}-sub-category-${uniqueDomIdSuffix}`} className="select select-bordered select-xs w-full" value={row.sub_category || ""} onChange={(e) => handleDetailedBudgetChange(row.localId, 'sub_category', e.target.value)} required disabled={!row.category} >
+                                                                            <select
+                                                                                id={`${budgetBaseId}-sub-category-${uniqueDomIdSuffix}`}
+                                                                                className={`select select-bordered select-xs w-full bg-white text-gray-700 ${subCatError ? 'border-red-500' : 'border-gray-300'}`}
+                                                                                value={row.sub_category || ""}
+                                                                                onChange={(e) => handleDetailedBudgetChange(row.localId, 'sub_category', e.target.value)}
+                                                                                required
+                                                                                disabled={!row.category}
+                                                                            >
                                                                                 <option value="" disabled>Select Subcategory</option>
-                                                                                {row.category === "Budgetary Expenditures" && (<><option value="Number of Sessions Planned">Sessions Planned</option><option value="Number of Keynote Speakers">Keynote Speakers</option><option value="Number of Session Judges">Session Judges</option><option value="Number of Celebrities / Chief Guests">Celebrities/Guests</option></>)} {row.category === "Publicity" && (<><option value="Invitation">Invitation</option><option value="Press Coverage">Press Coverage</option></>)} {row.category === "General" && (<><option value="Conference Kits">Conference Kits</option><option value="Printing and Stationery">Printing/Stationery</option><option value="Secretarial Expenses">Secretarial Expenses</option><option value="Mementos">Mementos</option></>)} {row.category === "Honorarium" && (<><option value="Keynote Speakers">Keynote Speakers</option><option value="Session Judges">Session Judges</option><option value="Chief Guests">Chief Guests</option></>)} {row.category === "Hospitality" && (<><option value="Train / Flight for Chief Guest / Keynote Speakers">Travel (Guests)</option><option value="Accommodation for Chief Guest / Keynote Speakers">Accommodation (Guests)</option><option value="Food and Beverages for Chief Guest / Keynote Speakers">Food (Guests)</option><option value="Local Travel Expenses">Local Travel</option><option value="Food for Participants">Food (Participants)</option><option value="Food & Snacks for Volunteers / Organizers">Food/Snacks (Team)</option><option value="Hostel Accommodation">Hostel Accommodation</option></>)} {row.category === "Inaugural and Valedictory" && (<><option value="Banners, Pandal etc">Banners/Pandal</option><option value="Lighting and Decoration">Lighting/Decoration</option><option value="Flower Bouquet">Flower Bouquet</option><option value="Cultural Events">Cultural Events</option><option value="Field Visits / Sightseeing">Field Visits</option><option value="Miscellaneous">Miscellaneous</option></>)} {row.category === "Resource Materials" && (<><option value="Preparation, Printing, Binding">Preparation/Printing</option></>)} {row.category === "Conference Paper Publication" && (<><option value="Extended Abstract">Extended Abstract</option><option value="Full Paper">Full Paper</option></>)}
+                                                                                {/* Populate options based on row.category */}
+                                                                                {row.category === "Budgetary Expenditures" && (<><option value="Number of Sessions Planned">Sessions Planned</option><option value="Number of Keynote Speakers">Keynote Speakers</option><option value="Number of Session Judges">Session Judges</option><option value="Number of Celebrities / Chief Guests">Celebrities/Guests</option></>)}
+                                                                                {row.category === "Publicity" && (<><option value="Invitation">Invitation</option><option value="Press Coverage">Press Coverage</option></>)}
+                                                                                {row.category === "General" && (<><option value="Conference Kits">Conference Kits</option><option value="Printing and Stationery">Printing/Stationery</option><option value="Secretarial Expenses">Secretarial Expenses</option><option value="Mementos">Mementos</option></>)}
+                                                                                {row.category === "Honorarium" && (<><option value="Keynote Speakers">Keynote Speakers</option><option value="Session Judges">Session Judges</option><option value="Chief Guests">Chief Guests</option></>)}
+                                                                                {row.category === "Hospitality" && (<><option value="Train / Flight for Chief Guest / Keynote Speakers">Travel (Guests)</option><option value="Accommodation for Chief Guest / Keynote Speakers">Accommodation (Guests)</option><option value="Food and Beverages for Chief Guest / Keynote Speakers">Food (Guests)</option><option value="Local Travel Expenses">Local Travel</option><option value="Food for Participants">Food (Participants)</option><option value="Food & Snacks for Volunteers / Organizers">Food/Snacks (Team)</option><option value="Hostel Accommodation">Hostel Accommodation</option></>)}
+                                                                                {row.category === "Inaugural and Valedictory" && (<><option value="Banners, Pandal etc">Banners/Pandal</option><option value="Lighting and Decoration">Lighting/Decoration</option><option value="Flower Bouquet">Flower Bouquet</option><option value="Cultural Events">Cultural Events</option><option value="Field Visits / Sightseeing">Field Visits</option><option value="Miscellaneous">Miscellaneous</option></>)}
+                                                                                {row.category === "Resource Materials" && (<><option value="Preparation, Printing, Binding">Preparation/Printing</option></>)}
+                                                                                {row.category === "Conference Paper Publication" && (<><option value="Extended Abstract">Extended Abstract</option><option value="Full Paper">Full Paper</option></>)}
                                                                             </select>
+                                                                            {subCatError && <p className="mt-1 text-xs text-red-600">{subCatError}</p>}
                                                                         </div>
                                                                     </td>
+                                                                    {/* Location Type */}
                                                                     <td className="p-2 align-middle text-center">
                                                                         <div role="group" className="flex flex-col justify-center items-center space-y-1">
-                                                                            <label className="flex items-center gap-1 cursor-pointer text-xs"><input type="radio" name={`${budgetBaseId}-type-${uniqueDomIdSuffix}`} value="Domestic" className="radio radio-xs checked:bg-blue-500" checked={row.type === "Domestic"} onChange={(e) => handleDetailedBudgetChange(row.localId, 'type', e.target.value as 'Domestic')} /> Dom </label>
-                                                                            <label className="flex items-center gap-1 cursor-pointer text-xs"><input type="radio" name={`${budgetBaseId}-type-${uniqueDomIdSuffix}`} value="International" className="radio radio-xs checked:bg-info" checked={row.type === "International"} onChange={(e) => handleDetailedBudgetChange(row.localId, 'type', e.target.value as 'International')} /> Intl</label>
+                                                                            <label className="flex items-center gap-1 cursor-pointer text-xs text-gray-700"><input type="radio" name={`${budgetBaseId}-type-${uniqueDomIdSuffix}`} value="Domestic" className="radio radio-xs checked:bg-blue-500 border-gray-300" checked={row.type === "Domestic"} onChange={(e) => handleDetailedBudgetChange(row.localId, 'type', e.target.value as 'Domestic')} /> Domestic </label>
+                                                                            <label className="flex items-center gap-1 cursor-pointer text-xs text-gray-700"><input type="radio" name={`${budgetBaseId}-type-${uniqueDomIdSuffix}`} value="International" className="radio radio-xs checked:bg-blue-500 border-gray-300" checked={row.type === "International"} onChange={(e) => handleDetailedBudgetChange(row.localId, 'type', e.target.value as 'International')} /> Intl </label>
                                                                         </div>
                                                                     </td>
-                                                                    <td className="p-2 text-right align-middle"><label htmlFor={`${budgetBaseId}-quantity-${uniqueDomIdSuffix}`} className="sr-only">Quantity {index + 1}</label><input type="number" id={`${budgetBaseId}-quantity-${uniqueDomIdSuffix}`} min="0" className="input input-bordered input-xs w-16 text-right" value={row.quantity} onChange={(e) => handleDetailedBudgetChange(row.localId, 'quantity', e.target.value)} required /></td>
-                                                                    <td className="p-2 text-right align-middle"><label htmlFor={`${budgetBaseId}-cost-${uniqueDomIdSuffix}`} className="sr-only">Cost per Unit {index + 1}</label><input type="number" id={`${budgetBaseId}-cost-${uniqueDomIdSuffix}`} min="0" step="any" className="input input-bordered input-xs w-20 text-right" value={row.cost} onChange={(e) => handleDetailedBudgetChange(row.localId, 'cost', e.target.value)} required /></td>
-                                                                    <td className="p-2 font-medium text-right align-middle">{parseFloat(row.amount || '0').toLocaleString('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0 })}</td>
-                                                                    <td className="p-2 text-center align-middle"><button type="button" onClick={() => deleteDetailedBudgetRow(row.localId)} className="btn btn-ghost btn-xs text-red-500 hover:bg-red-100 p-1" aria-label={`Delete budget row ${index + 1}`}><Trash2 className="h-4 w-4" /></button></td>
+                                                                    {/* Quantity */}
+                                                                    <td className="p-2 text-right align-top">
+                                                                        <label htmlFor={`${budgetBaseId}-quantity-${uniqueDomIdSuffix}`} className="sr-only">Quantity {index + 1}</label>
+                                                                        <input type="number" id={`${budgetBaseId}-quantity-${uniqueDomIdSuffix}`} min="0" className={`input input-bordered input-xs w-16 text-right ${qtyError ? 'border-red-500' : 'border-gray-300'}`} value={row.quantity} onChange={(e) => handleDetailedBudgetChange(row.localId, 'quantity', e.target.value)} required />
+                                                                        {qtyError && <p className="mt-1 text-xs text-red-600">{qtyError}</p>}
+                                                                    </td>
+                                                                    {/* Cost */}
+                                                                    <td className="p-2 text-right align-top">
+                                                                        <label htmlFor={`${budgetBaseId}-cost-${uniqueDomIdSuffix}`} className="sr-only">Cost per Unit {index + 1}</label>
+                                                                        <input type="number" id={`${budgetBaseId}-cost-${uniqueDomIdSuffix}`} min="0" step="0.01" className={`input input-bordered input-xs w-20 text-right ${costError ? 'border-red-500' : 'border-gray-300'}`} value={row.cost} onChange={(e) => handleDetailedBudgetChange(row.localId, 'cost', e.target.value)} required />
+                                                                         {costError && <p className="mt-1 text-xs text-red-600">{costError}</p>}
+                                                                    </td>
+                                                                    {/* Total */}
+                                                                    <td className="p-2 font-medium text-right align-middle text-gray-700 pt-3">{parseFloat(row.amount || '0').toLocaleString('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 2 })}</td>
+                                                                    {/* Action */}
+                                                                    <td className="p-2 text-center align-middle pt-3">
+                                                                        <button type="button" onClick={() => deleteDetailedBudgetRow(row.localId)} className="btn btn-ghost btn-xs text-red-500 hover:bg-red-100 p-1" aria-label={`Delete budget row ${index + 1}`}>
+                                                                            <Trash2 className="h-4 w-4" />
+                                                                        </button>
+                                                                    </td>
                                                                 </tr>
                                                             );
                                                         })}
                                                     </tbody>
-                                                    <tfoot><tr className="bg-gray-100 font-semibold text-gray-700"><td colSpan={5} className="text-right p-3">Total Estimated Budget:</td><td className="text-right p-3">{totalDetailedBudget.toLocaleString('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0 })}</td><td className="p-3"></td></tr></tfoot>
+                                                     {/* --- Table Foot --- */}
+                                                     <tfoot>
+                                                        <tr className="bg-gray-100 font-semibold text-gray-700 text-sm">
+                                                            <td colSpan={5} className="text-right p-3">Total Estimated Budget:</td>
+                                                            <td className="text-right p-3">{totalDetailedBudget.toLocaleString('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 2 })}</td>
+                                                            <td className="p-3"></td>
+                                                         </tr>
+                                                      </tfoot>
                                                 </table>
                                             </div>
-                                            <button type="button" onClick={addDetailedBudgetRow} className="btn btn-outline btn-primary btn-sm mt-4 rounded-full flex items-center gap-1">
+                                            <button type="button" onClick={addDetailedBudgetRow} className="btn btn-sm btn-outline btn-primary mt-4 rounded-full flex items-center gap-1 normal-case font-medium">
                                                 <PlusCircle size={16} /> Add Budget Item
                                             </button>
                                         </div>
 
                                         {/* Sponsorship */}
                                         <div>
-                                            <h4 className="text-lg font-semibold text-gray-800 mb-2 flex items-center gap-2">
-                                                <Award size={20}/> Sponsorship Details <span className="text-red-500">*</span>
+                                            <h4 className="text-lg font-medium text-gray-800 mb-2 flex items-center gap-2">
+                                                <Award size={18}/> Sponsorship Details <span className="text-red-500 text-sm">*</span>
                                             </h4>
                                             <p className="text-sm text-gray-600 mb-4">Provide details for each potential or confirmed sponsor.</p>
-                                            <div className="overflow-x-auto border border-gray-200 rounded-lg shadow-sm">
-                                                {/* ... Sponsorship Table remains the same ... */}
-                                                <table className="table w-full table-compact">
-                                                    <thead className="bg-gray-100">
-                                                        <tr className="text-left text-gray-600 uppercase text-xs tracking-wider">
-                                                            <th className="p-3">#</th><th className="p-3">Category <span className="text-red-500">*</span></th><th className="p-3 text-right">Amount (₹) <span className="text-red-500">*</span></th><th className="p-3">Reward <span className="text-red-500">*</span></th><th className="p-3">Mode <span className="text-red-500">*</span></th><th className="p-3">Benefit/Output <span className="text-red-500">*</span></th><th className="p-3 text-center">Action</th>
+                                            {formErrors.sponsorship && <p className="mb-2 text-sm text-red-600">{formErrors.sponsorship}</p>}
+                                            <div className="overflow-x-auto border border-gray-200 rounded-lg bg-white">
+                                                <table className="table w-full table-auto">
+                                                     {/* --- Table Head --- */}
+                                                    <thead className="bg-gray-50">
+                                                        <tr className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                                                            <th className="p-3 w-10">#</th>
+                                                            <th className="p-3 min-w-[150px]">Category <span className="text-red-500">*</span></th>
+                                                            <th className="p-3 text-right min-w-[100px]">Amount (₹) <span className="text-red-500">*</span></th>
+                                                            <th className="p-3 min-w-[150px]">Reward <span className="text-red-500">*</span></th>
+                                                            <th className="p-3 min-w-[100px]">Mode <span className="text-red-500">*</span></th>
+                                                            <th className="p-3 min-w-[150px]">Benefit/Output <span className="text-red-500">*</span></th>
+                                                             <th className="p-3 min-w-[200px]">About Sponsor <span className="text-red-500">*</span></th>
+                                                            <th className="p-3 text-center w-16">Action</th>
                                                         </tr>
                                                     </thead>
+                                                     {/* --- Table Body --- */}
                                                     <tbody>
                                                         {sponsorshipRows.map((row, index) => {
                                                             const uniqueDomIdSuffix = row.localId;
+                                                            const catError = formErrors[`sponsor_category_${row.localId}`];
+                                                            const amountError = formErrors[`sponsor_amount_${row.localId}`];
+                                                            const rewardError = formErrors[`sponsor_reward_${row.localId}`];
+                                                            const modeError = formErrors[`sponsor_mode_${row.localId}`];
+                                                            const benefitError = formErrors[`sponsor_benefit_${row.localId}`];
+                                                            const aboutError = formErrors[`sponsor_about_${row.localId}`];
                                                             return (
-                                                                <React.Fragment key={row.localId}>
-                                                                    <tr className="border-b border-gray-200 hover:bg-gray-50/50 text-sm">
-                                                                        <td className="p-2 font-medium text-gray-500 align-middle">{index + 1}</td>
-                                                                        <td className="p-2 align-middle"><label htmlFor={`${sponsorBaseId}-category-${uniqueDomIdSuffix}`} className="sr-only">Sponsor Category {index + 1}</label><input type="text" id={`${sponsorBaseId}-category-${uniqueDomIdSuffix}`} placeholder="e.g., Title Sponsor" className="input input-bordered input-xs w-full" value={row.category} onChange={(e) => handleSponsorshipChange(row.localId, 'category', e.target.value)} required /></td>
-                                                                        <td className="p-2 text-right align-middle"><label htmlFor={`${sponsorBaseId}-amount-${uniqueDomIdSuffix}`} className="sr-only">Sponsor Amount {index + 1}</label><input type="number" id={`${sponsorBaseId}-amount-${uniqueDomIdSuffix}`} min="0" placeholder="Amount" className="input input-bordered input-xs w-20 text-right" value={row.amount} onChange={(e) => handleSponsorshipChange(row.localId, 'amount', e.target.value)} required /></td>
-                                                                        <td className="p-2 align-middle"><label htmlFor={`${sponsorBaseId}-reward-${uniqueDomIdSuffix}`} className="sr-only">Sponsor Reward {index + 1}</label><input type="text" id={`${sponsorBaseId}-reward-${uniqueDomIdSuffix}`} placeholder="Reward/Perk" className="input input-bordered input-xs w-full" value={row.reward} onChange={(e) => handleSponsorshipChange(row.localId, 'reward', e.target.value)} required /></td>
-                                                                        <td className="p-2 align-middle"><label htmlFor={`${sponsorBaseId}-mode-${uniqueDomIdSuffix}`} className="sr-only">Sponsor Mode {index + 1}</label><input type="text" id={`${sponsorBaseId}-mode-${uniqueDomIdSuffix}`} placeholder="e.g., Cash, Kind" className="input input-bordered input-xs w-full" value={row.mode} onChange={(e) => handleSponsorshipChange(row.localId, 'mode', e.target.value)} required /></td>
-                                                                        <td className="p-2 align-middle"><label htmlFor={`${sponsorBaseId}-benefit-${uniqueDomIdSuffix}`} className="sr-only">Sponsor Benefit {index + 1}</label><input type="text" id={`${sponsorBaseId}-benefit-${uniqueDomIdSuffix}`} placeholder="Benefit to Event" className="input input-bordered input-xs w-full" value={row.benefit} onChange={(e) => handleSponsorshipChange(row.localId, 'benefit', e.target.value)} required /></td>
-                                                                        <td className="p-2 text-center align-middle"><button type="button" onClick={() => deleteSponsorshipRow(row.localId)} className="btn btn-ghost btn-xs text-red-500 hover:bg-red-100 p-1" aria-label={`Delete sponsor row ${index + 1}`}><Trash2 className="h-4 w-4" /></button></td>
-                                                                    </tr>
-                                                                    <tr className="border-b border-gray-200 bg-gray-50/30">
-                                                                        <td colSpan={7} className="px-3 py-2"><label htmlFor={`${sponsorBaseId}-about-${uniqueDomIdSuffix}`} className="block text-gray-600 text-xs font-semibold mb-1">About Sponsor {index + 1} <span className="text-red-500">*</span></label><textarea id={`${sponsorBaseId}-about-${uniqueDomIdSuffix}`} rows={1} className="textarea textarea-bordered w-full text-sm p-1.5" value={row.about} onChange={(e) => handleSponsorshipChange(row.localId, 'about', e.target.value)} placeholder="Brief details about the sponsor (e.g., company info, contact person)" required /></td>
-                                                                    </tr>
-                                                                </React.Fragment>
+                                                                <tr key={row.localId} className="border-b border-gray-200 last:border-b-0 hover:bg-gray-50/50 text-sm align-top">
+                                                                    <td className="p-2 font-medium text-gray-500 text-center pt-3">{index + 1}</td>
+                                                                    {/* Category */}
+                                                                    <td className="p-2">
+                                                                        <label htmlFor={`${sponsorBaseId}-category-${uniqueDomIdSuffix}`} className="sr-only">Sponsor Category {index + 1}</label>
+                                                                        <input type="text" id={`${sponsorBaseId}-category-${uniqueDomIdSuffix}`} placeholder="e.g., Title Sponsor" className={`input input-bordered input-xs w-full text-gray-800 bg-white ${catError ? 'border-red-500' : 'border-gray-300'}`} value={row.category} onChange={(e) => handleSponsorshipChange(row.localId, 'category', e.target.value)} required />
+                                                                        {catError && <p className="mt-1 text-xs text-red-600">{catError}</p>}
+                                                                    </td>
+                                                                    {/* Amount */}
+                                                                    <td className="p-2 text-right">
+                                                                        <label htmlFor={`${sponsorBaseId}-amount-${uniqueDomIdSuffix}`} className="sr-only">Sponsor Amount {index + 1}</label>
+                                                                        <input type="number" id={`${sponsorBaseId}-amount-${uniqueDomIdSuffix}`} min="0" placeholder="Amount" className={`input input-bordered input-xs w-24 text-right text-gray-800 bg-white ${amountError ? 'border-red-500' : 'border-gray-300'}`} value={row.amount} onChange={(e) => handleSponsorshipChange(row.localId, 'amount', e.target.value)} required />
+                                                                         {amountError && <p className="mt-1 text-xs text-red-600">{amountError}</p>}
+                                                                    </td>
+                                                                    {/* Reward */}
+                                                                    <td className="p-2">
+                                                                        <label htmlFor={`${sponsorBaseId}-reward-${uniqueDomIdSuffix}`} className="sr-only">Sponsor Reward {index + 1}</label>
+                                                                        <input type="text" id={`${sponsorBaseId}-reward-${uniqueDomIdSuffix}`} placeholder="Reward/Perk" className={`input input-bordered input-xs w-full text-gray-800 bg-white ${rewardError ? 'border-red-500' : 'border-gray-300'}`} value={row.reward} onChange={(e) => handleSponsorshipChange(row.localId, 'reward', e.target.value)} required />
+                                                                         {rewardError && <p className="mt-1 text-xs text-red-600">{rewardError}</p>}
+                                                                    </td>
+                                                                     {/* Mode */}
+                                                                    <td className="p-2">
+                                                                        <label htmlFor={`${sponsorBaseId}-mode-${uniqueDomIdSuffix}`} className="sr-only">Sponsor Mode {index + 1}</label>
+                                                                        <input type="text" id={`${sponsorBaseId}-mode-${uniqueDomIdSuffix}`} placeholder="e.g., Cash, Kind" className={`input input-bordered input-xs w-full text-gray-800 bg-white ${modeError ? 'border-red-500' : 'border-gray-300'}`} value={row.mode} onChange={(e) => handleSponsorshipChange(row.localId, 'mode', e.target.value)} required />
+                                                                        {modeError && <p className="mt-1 text-xs text-red-600">{modeError}</p>}
+                                                                    </td>
+                                                                    {/* Benefit */}
+                                                                    <td className="p-2">
+                                                                        <label htmlFor={`${sponsorBaseId}-benefit-${uniqueDomIdSuffix}`} className="sr-only">Sponsor Benefit {index + 1}</label>
+                                                                        <input type="text" id={`${sponsorBaseId}-benefit-${uniqueDomIdSuffix}`} placeholder="Benefit to Event" className={`input input-bordered input-xs w-full text-gray-800 bg-white ${benefitError ? 'border-red-500' : 'border-gray-300'}`} value={row.benefit} onChange={(e) => handleSponsorshipChange(row.localId, 'benefit', e.target.value)} required />
+                                                                         {benefitError && <p className="mt-1 text-xs text-red-600">{benefitError}</p>}
+                                                                    </td>
+                                                                    {/* About */}
+                                                                    <td className="p-2">
+                                                                        <label htmlFor={`${sponsorBaseId}-about-${uniqueDomIdSuffix}`} className="sr-only">About Sponsor {index + 1}</label>
+                                                                        <textarea id={`${sponsorBaseId}-about-${uniqueDomIdSuffix}`} rows={1} className={`textarea textarea-bordered textarea-xs w-full text-gray-800 bg-white ${aboutError ? 'border-red-500' : 'border-gray-300'}`} value={row.about} onChange={(e) => handleSponsorshipChange(row.localId, 'about', e.target.value)} placeholder="Brief details about sponsor..." required />
+                                                                        {aboutError && <p className="mt-1 text-xs text-red-600">{aboutError}</p>}
+                                                                    </td>
+                                                                    {/* Action */}
+                                                                    <td className="p-2 text-center pt-3">
+                                                                        <button type="button" onClick={() => deleteSponsorshipRow(row.localId)} className="btn btn-ghost btn-xs text-red-500 hover:bg-red-100 p-1" aria-label={`Delete sponsor row ${index + 1}`}>
+                                                                            <Trash2 className="h-4 w-4" />
+                                                                        </button>
+                                                                    </td>
+                                                                </tr>
                                                             );
                                                         })}
                                                     </tbody>
-                                                     <tfoot><tr className="bg-gray-100 font-semibold text-gray-700"><td colSpan={2} className="text-right p-3">Total Sponsorship Amount:</td><td className="text-right p-3">{totalSponsorshipAmount.toLocaleString('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0 })}</td><td colSpan={4} className="p-3"></td></tr></tfoot>
+                                                     {/* --- Table Foot --- */}
+                                                      <tfoot>
+                                                        <tr className="bg-gray-100 font-semibold text-gray-700 text-sm">
+                                                            <td colSpan={2} className="text-right p-3">Total Sponsorship Amount:</td>
+                                                            <td className="text-right p-3">{totalSponsorshipAmount.toLocaleString('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 2 })}</td>
+                                                            <td colSpan={5} className="p-3"></td>{/* Adjusted colspan */}
+                                                         </tr>
+                                                      </tfoot>
                                                 </table>
                                             </div>
-                                            <button type="button" onClick={addSponsorshipRow} className="btn btn-outline btn-primary btn-sm mt-4 rounded-full flex items-center gap-1">
+                                            <button type="button" onClick={addSponsorshipRow} className="btn btn-sm btn-outline btn-primary mt-4 rounded-full flex items-center gap-1 normal-case font-medium">
                                                 <PlusCircle size={16} /> Add Sponsor
                                             </button>
                                         </div>
                                     </div>
-                                </div>
+                                </section>
 
                                 {/* Submit Button Area */}
-                                <div className="mt-12 pt-8 border-t border-gray-300 flex justify-center">
-                                    <button type="submit" className="btn btn-primary btn-lg rounded-full text-lg font-semibold px-10 py-3 shadow-md hover:shadow-lg transition-shadow duration-300" disabled={!authToken}> {/* Optionally disable if no token */}
-                                        {proposalId ? 'Update Proposal' : 'Submit Proposal'}
+                                <div className="mt-12 pt-8 border-t border-gray-200 flex justify-center">
+                                    <button
+                                        type="submit"
+                                        className="btn btn-primary btn-lg rounded-full text-lg font-semibold px-10 py-3 shadow-md hover:shadow-lg transition-all duration-300 disabled:opacity-50"
+                                        disabled={isLoading || !authToken} // Disable if loading or no token
+                                    >
+                                        {isLoading ? (
+                                            <span className="loading loading-spinner loading-sm"></span>
+                                        ) : (
+                                           proposalId ? 'Update Proposal' : 'Submit Proposal'
+                                        )}
                                     </button>
                                 </div>
+                                {!authToken && <p className="text-center text-red-600 text-sm mt-4">Authentication token not found. Please log in.</p>}
 
                             </form> {/* End Form */}
                         </div> {/* End Card Body */}
