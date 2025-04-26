@@ -1,10 +1,14 @@
 import React from 'react'
 import Proposal from './proposal'
+import Navbar from '@/components/Navbar'
 const page = () => {
   return (
     <div>
-      <Proposal/>
+      <div> 
+    <Navbar/>
     </div>
+      <Proposal/>
+    </div> 
   )
 }
 
