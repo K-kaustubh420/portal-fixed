@@ -142,6 +142,7 @@ const ViceChairDashboard: React.FC = () => {
         selectedProposal: null,
         fetchError: null,
     });
+    const [selectedEvent, setSelectedEvent] = useState<Proposal | null>(null);
     const { token, user, logout } = useAuth();
     const apiBaseUrl = "https://pmspreview-htfbhkdnffcpf5dz.centralindia-01.azurewebsites.net";
     const expectedUserRole = 'vice_chair';

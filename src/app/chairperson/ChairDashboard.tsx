@@ -1,163 +1,291 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import axios, { AxiosError } from 'axios';
-import Overview from './overview'; // Reusable
-import Stats from './stats'; // Reusable
-import Popup from './popup'; // Use the MODIFIED Popup component
-import Recents from './recents'; // Reusable
-import CalendarView from './calendarview'; // Reusable
-import AwaitingAtU from './awaitingatu'; // Reusable
-import { useAuth } from '@/context/AuthContext'; // Reusable
+import Overview from './overview';
+import Stats from './stats';
+import Popup from './popup';
+import Recents from './recents';
+import CalendarView from './calendarview';
+import AwaitingAtU from './awaitingatu'; // Assuming this component can handle different roles via props
+import { useAuth } from '@/context/AuthContext';
 
-// --- Define or Import Interfaces ---
-// (Make sure these match your actual data structure)
+// Interfaces (assuming these are defined elsewhere or above, unchanged)
 export interface Item { id: number; proposal_id: number; category: string; sub_category: string; type: string | null; quantity: number; cost: number; amount: number; created_at: string | null; updated_at: string | null; status: string; }
 export interface Sponsor { id: number; proposal_id: number; category: string; amount: number; reward: string; mode: string; about: string; benefit: string; created_at: string | null; updated_at: string | null; }
 export interface Message { id: number; proposal_id: number; user_id: number; message: string; created_at: string | null; updated_at: string | null; }
-export interface User { name: string; department: number | string; email: string; role: string; designation: string; dept_id: number; }
+export interface User {
+    name: string;
+    department: number | string | { id: number; name: string; };
+    email: string;
+    role: string;
+    designation: string;
+    dept_id: number;
+}
 export interface Proposal { id: string; title: string; status: 'Approved' | 'Pending' | 'Rejected' | 'Review'; date: string; organizer: string; convenerName: string; awaiting?: string | null; }
-export interface UnifiedProposal { id: string; title: string; status: 'Approved' | 'Pending' | 'Rejected' | 'Review'; date: string; organizer: string; convenerName: string; convenerEmail: string; submissionTimestamp: string; description: string; category: string; eventStartDate: string; eventEndDate: string; eventDate: string; eventDescription: string; eventTitle: string; cost: number; detailedBudget: Item[]; estimatedBudget: number; email: string; location?: string; chiefGuestName?: string; chiefGuestDesignation?: string; designation?: string; durationEvent?: string; fundingDetails?: { [key: string]: number | null; }; organizingDepartment?: string; department_name?: string; pastEvents?: string | string[] | null; proposalStatus?: string; relevantDetails?: string | null; sponsorshipDetails: Sponsor[]; sponsorshipDetailsRows?: any[]; rejectionMessage?: string; tags?: string[]; messages: Message[]; chief?: User | null; user?: User | null; awaiting: string | null; }
-export interface ProposalListItem { id: number; user_id: number; chief_id?: number | null; title: string; description: string; start: string; end: string; category: string; past: string | null; other: string | null; status: 'completed' | 'pending' | 'rejected' | 'review'; participant_expected: number | null; participant_categories: string | null; fund_uni: number | null; fund_registration: number | null; fund_sponsor: number | null; fund_others: number | null; created_at: string | null; updated_at: string | null; department_name: string; awaiting: string | null; faculty?: { id: number; name: string; email: string; phone: string; role: string; designation: string; dept_id: number; department: { id: number; name: string; }; }; /* other fields */ }
-export interface DetailedProposalResponse { proposal: ProposalListItem; chief: User | null; items: Item[]; sponsors: Sponsor[]; messages: Message[]; user?: User | null; department_name: string; }
-export interface ApiResponse { status: string; proposals: ProposalListItem[]; }
-// --- End Interfaces ---
+export interface UnifiedProposal {
+    id: string;
+    title: string;
+    status: 'Approved' | 'Pending' | 'Rejected' | 'Review';
+    date: string;
+    organizer: string;
+    convenerName: string;
+    convenerEmail: string;
+    submissionTimestamp: string;
+    description: string;
+    category: string;
+    eventStartDate: string;
+    eventEndDate: string;
+    eventDate: string;
+    eventDescription: string;
+    eventTitle: string;
+    cost: number;
+    detailedBudget: Item[];
+    estimatedBudget: number;
+    email: string;
+    location?: string;
+    chiefGuestName?: string;
+    chiefGuestDesignation?: string;
+    designation?: string;
+    durationEvent?: string;
+    fundingDetails?: { [key: string]: number | null; };
+    organizingDepartment?: string;
+    department_name?: string;
+    pastEvents?: string | string[] | null;
+    proposalStatus?: string;
+    relevantDetails?: string | null;
+    sponsorshipDetails: Sponsor[];
+    sponsorshipDetailsRows?: any[];
+    rejectionMessage?: string;
+    tags?: string[];
+    messages: Message[];
+    chief?: User | null;
+    user?: User | null;
+    awaiting: string | null;
+}
+export interface ProposalListItem {
+    id: number;
+    user_id: number;
+    chief_id?: number | null;
+    title: string;
+    description: string;
+    start: string;
+    end: string;
+    category: string;
+    past: string | null;
+    other: string | null;
+    status: 'completed' | 'pending' | 'rejected' | 'review';
+    participant_expected: number | null;
+    participant_categories: string | null;
+    fund_uni: number | null;
+    fund_registration: number | null;
+    fund_sponsor: number | null;
+    fund_others: number | null;
+    created_at: string | null;
+    updated_at: string | null;
+    department_name: string;
+    awaiting: string | null;
+    faculty?: {
+        id: number;
+        name: string;
+        email: string;
+        phone?: string;
+        role: string;
+        designation: string;
+        dept_id: number;
+        department?: { id: number; name: string; };
+    };
+}
+export interface DetailedProposalResponse {
+    proposal: ProposalListItem;
+    chief: User | null;
+    items: Item[];
+    sponsors: Sponsor[];
+    messages: Message[];
+    user?: User | null;
+    department_name: string;
+}
+export interface ApiResponse {
+    status: string;
+    proposals: ProposalListItem[];
+}
 
+// Helper function (unchanged)
+const capitalize = (str: string): string => {
+    if (!str) return '';
+    // Keep specific handling if needed, otherwise simplify
+    if (str === 'vice_chair') return 'Vice Chair'; // Keep if vice_chair might appear elsewhere
+    if (str === 'chair') return 'Chair'; // Add handling for 'chair'
+    return str
+        .split(/[\s_]+/)
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(' ');
+};
+
+interface DashboardState {
+    loading: boolean;
+    error: string | null;
+    proposals: ProposalListItem[];
+}
+
+interface PopupState {
+    isLoading: boolean;
+    selectedProposal: UnifiedProposal | null;
+    fetchError: string | null;
+}
 
 const ChairDashboard: React.FC = () => {
-    const [proposals, setProposals] = useState<ProposalListItem[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [selectedProposal, setSelectedProposal] = useState<UnifiedProposal | null>(null);
-    const [fetchError, setFetchError] = useState<string | null>(null); // Error specific to fetching details for popup
-    const [isPopupLoading, setIsPopupLoading] = useState(false); // Loading state for popup details fetch
+    const [dashboardState, setDashboardState] = useState<DashboardState>({
+        loading: true,
+        error: null,
+        proposals: [],
+    });
+    const [popupState, setPopupState] = useState<PopupState>({
+        isLoading: false,
+        selectedProposal: null,
+        fetchError: null,
+    });
+    // selectedEvent state seems unused based on the provided ViceChair code, omitting unless needed.
+    // const [selectedEvent, setSelectedEvent] = useState<Proposal | null>(null);
     const { token, user, logout } = useAuth();
     const apiBaseUrl = "https://pmspreview-htfbhkdnffcpf5dz.centralindia-01.azurewebsites.net";
-    const currentUserRole = 'chair'; // Define the role for this dashboard
+    const expectedUserRole = 'chair'; // *** CHANGED ***
+    const apiRoleSegment = 'chair'; // *** CHANGED ***
 
-    // Helper function to capitalize status (no changes needed)
-    const capitalize = (str: string): string => { /* ... */ };
+    // calculateStats memoized function (unchanged logic)
+    const calculateStats = useMemo(
+        () => (proposalList: ProposalListItem[]) => {
+            if (!Array.isArray(proposalList)) return { approvedProposalsCount: 0, pendingProposalsCount: 0, rejectedProposalsCount: 0, reviewProposalsCount: 0, totalProposalsCount: 0 };
+            let approved = 0, pending = 0, rejected = 0, review = 0;
+            proposalList.forEach(p => {
+                if (!p || typeof p.status !== 'string') return;
+                const status = p.status.toLowerCase();
+                // Assuming 'completed' status means approved for Chair as well
+                if (status === 'completed') approved++;
+                else if (status === 'pending') pending++;
+                else if (status === 'rejected') rejected++;
+                else if (status === 'review') review++;
+            });
+            return { approvedProposalsCount: approved, pendingProposalsCount: pending, rejectedProposalsCount: rejected, reviewProposalsCount: review, totalProposalsCount: proposalList.length };
+        },
+        []
+    );
 
+    // fetchProposals callback
     const fetchProposals = useCallback(async () => {
-        // Check for correct role
-        if (!token || !user || user.role !== currentUserRole) {
-            setError(user ? `Access denied. User is not a ${capitalize(currentUserRole)}.` : "User not authenticated.");
-            setLoading(false);
+        if (!token || !user || user.role !== expectedUserRole) {
+            setDashboardState({
+                loading: false,
+                error: user ? `Access denied. User is not a ${capitalize(expectedUserRole)}.` : "User not authenticated.",
+                proposals: [],
+            });
             return;
         }
-        setLoading(true);
-        setError(null);
-        // Use role-specific API endpoint
-        const proposalEndpoint = `${apiBaseUrl}/api/${currentUserRole}/proposals`;
-        console.log(`ChairDashboard: Fetching proposals from ${proposalEndpoint}`); // Log endpoint
-
+        setDashboardState(prev => ({ ...prev, loading: true, error: null }));
+        const proposalEndpoint = `${apiBaseUrl}/api/${apiRoleSegment}/proposals`; // *** Uses updated apiRoleSegment ***
         try {
             const response = await axios.get<ApiResponse>(proposalEndpoint, {
-                headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
+                headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
             });
-            setProposals(response.data.proposals || []);
+            setDashboardState({
+                loading: false,
+                error: null,
+                proposals: response.data.proposals || [],
+            });
         } catch (err: any) {
             const axiosError = err as AxiosError;
-            let errorMessage = 'Failed to fetch proposals';
-             if (axiosError.response?.status === 401) { errorMessage = "Authentication failed."; logout(); }
-             else if (axiosError.response?.status === 403) { errorMessage = `Forbidden: You lack permission to view ${currentUserRole} proposals.`; }
-             else { errorMessage = (axiosError.response?.data as any)?.message || axiosError.message || `Failed to fetch ${currentUserRole} proposals`; }
-             console.error(`${capitalize(currentUserRole)}Dashboard: Error fetching proposals:`, { errorMessage, status: axiosError.response?.status });
-            setError(errorMessage);
-        } finally {
-            setLoading(false);
+            let errorMessage = `Failed to fetch ${capitalize(expectedUserRole)} proposals`; // *** Updated error message ***
+            if (axiosError.response?.status === 401) {
+                errorMessage = "Authentication failed.";
+                logout();
+            } else if (axiosError.response?.status === 403) {
+                errorMessage = `Forbidden: You lack permission to view ${capitalize(expectedUserRole)} proposals.`; // *** Updated error message ***
+            } else {
+                errorMessage =
+                    (axiosError.response?.data as any)?.message ||
+                    axiosError.message ||
+                    `Failed to fetch ${capitalize(expectedUserRole)} proposals`; // *** Updated error message ***
+            }
+            setDashboardState({
+                loading: false,
+                error: errorMessage,
+                proposals: [],
+            });
         }
-    }, [token, user, logout, apiBaseUrl, currentUserRole]); // Added dependencies
+    }, [token, user, logout, apiBaseUrl, expectedUserRole, apiRoleSegment]); // *** Dependencies updated ***
 
-    useEffect(() => {
-        if (user?.role === currentUserRole) {
-            fetchProposals();
-        } else if (user) {
-            setError(`Access denied. This dashboard is for ${capitalize(currentUserRole)}s only.`);
-            setLoading(false);
-        } else {
-            setError("User not authenticated.");
-            setLoading(false);
-        }
-    }, [fetchProposals, user, currentUserRole]); // Added dependency
-
+    // fetchProposalDetail callback
     const fetchProposalDetail = useCallback(async (proposalId: number): Promise<UnifiedProposal | null> => {
-        // Check for correct role
-        if (!token || !user || user.role !== currentUserRole) {
-             console.error(`${capitalize(currentUserRole)}Dashboard: fetchProposalDetail cancelled: Invalid auth.`, { tokenExists: !!token, userRole: user?.role });
-            setFetchError("Authentication or authorization failed."); // Set popup-specific error
+        if (!token || !user || user.role !== expectedUserRole) {
+            setPopupState(prev => ({ ...prev, fetchError: "Authentication or authorization failed.", isLoading: false }));
             return null;
         }
-        setIsPopupLoading(true);
-        setFetchError(null);
-        // Use role-specific API endpoint
-        const detailEndpoint = `${apiBaseUrl}/api/${currentUserRole}/proposals/${proposalId}`;
-        console.log(`${capitalize(currentUserRole)}Dashboard: Fetching proposal detail from ${detailEndpoint}`);
-
+        setPopupState(prev => ({ ...prev, isLoading: true, fetchError: null }));
+        const detailEndpoint = `${apiBaseUrl}/api/${apiRoleSegment}/proposals/${proposalId}`; // *** Uses updated apiRoleSegment ***
         try {
             const response = await axios.get<DetailedProposalResponse>(detailEndpoint, {
-                headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
+                headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
             });
-            // Assume mapDetailResponseToUnifiedProposal exists and works
-            return mapDetailResponseToUnifiedProposal(response.data);
+            const proposal = mapDetailResponseToUnifiedProposal(response.data);
+            setPopupState(prev => ({ ...prev, isLoading: false, selectedProposal: proposal, fetchError: null }));
+            return proposal;
         } catch (err: any) {
             const axiosError = err as AxiosError;
             let errorMessage = 'Failed to fetch proposal details';
-            if (axiosError.response?.status === 404) { errorMessage = `Proposal not found or not awaiting at the ${currentUserRole} level.`; }
-            else if (axiosError.response?.status === 401) { errorMessage = "Authentication failed."; logout(); }
-            else if (axiosError.response?.status === 403) { errorMessage = `Forbidden: You lack permission to view this proposal as ${currentUserRole}.`; }
-            else { errorMessage = (axiosError.response?.data as any)?.message || axiosError.message || 'Failed to fetch proposal details'; }
-            console.error(`${capitalize(currentUserRole)}Dashboard: Error fetching proposal detail:`, { proposalId, errorMessage, status: axiosError.response?.status });
-            setFetchError(errorMessage); // Set popup-specific error
+            if (axiosError.response?.status === 404) {
+                errorMessage = `Proposal not found or is not awaiting at the ${capitalize(apiRoleSegment)} level.`; // *** Updated error message ***
+            } else if (axiosError.response?.status === 401) {
+                errorMessage = "Authentication failed.";
+                logout();
+            } else if (axiosError.response?.status === 403) {
+                errorMessage = `Forbidden: You lack permission to view this proposal as ${capitalize(expectedUserRole)}.`; // *** Updated error message ***
+            } else {
+                errorMessage =
+                    (axiosError.response?.data as any)?.message ||
+                    axiosError.message ||
+                    'An unexpected error occurred while fetching details';
+            }
+            setPopupState(prev => ({ ...prev, isLoading: false, fetchError: errorMessage, selectedProposal: null }));
             return null;
-        } finally {
-            setIsPopupLoading(false);
         }
-    }, [token, user, logout, apiBaseUrl, currentUserRole]); // Added dependencies
+    }, [token, user, logout, apiBaseUrl, expectedUserRole, apiRoleSegment]); // *** Dependencies updated ***
 
-    // --- Mapping and Stat Functions (Copy from DeanDashboard or ensure they are correct) ---
-    const calculateStats = (proposalList: ProposalListItem[]) => {
-         if (!Array.isArray(proposalList)) return { approvedProposalsCount: 0, pendingProposalsCount: 0, rejectedProposalsCount: 0, reviewProposalsCount: 0, totalProposalsCount: 0 };
-         let approved = 0, pending = 0, rejected = 0, review = 0;
-         proposalList.forEach(p => {
-             if (!p || typeof p.status !== 'string') return;
-             const status = p.status.toLowerCase();
-             if (status === 'completed') approved++;
-             else if (status === 'pending') pending++;
-             else if (status === 'rejected') rejected++;
-             else if (status === 'review') review++;
-         });
-         return { approvedProposalsCount: approved, pendingProposalsCount: pending, rejectedProposalsCount: rejected, reviewProposalsCount: review, totalProposalsCount: proposalList.length };
-    };
-    const stats = calculateStats(proposals);
-
-    const recentAppliedProposals = Array.isArray(proposals) ? [...proposals].filter(p => p && p.created_at).sort((a, b) => new Date(b.created_at!).getTime() - new Date(a.created_at!).getTime()).slice(0, 5) : [];
-
-    const mapListItemToUnifiedProposal = (p: ProposalListItem): UnifiedProposal => {
-        // This function needs careful implementation based on ProposalListItem structure
-        // Example structure (adapt as needed):
+    // mapListItemToUnifiedProposal callback (logic depends on apiRoleSegment for 'Awaiting Action' tag)
+    const mapListItemToUnifiedProposal = useCallback((p: ProposalListItem): UnifiedProposal => {
         const calculatedCost = (p.fund_uni ?? 0) + (p.fund_registration ?? 0) + (p.fund_sponsor ?? 0) + (p.fund_others ?? 0);
-        const convenerName = p.faculty?.name || `User ID ${p.user_id}`;
-        const convenerEmail = p.faculty?.email || 'N/A';
-        const designation = p.faculty?.designation || '';
-        const departmentName = p.department_name || p.faculty?.department?.name || 'Unknown Department';
-
+        const convener = p.faculty;
+        const convenerName = convener?.name || `User ID ${p.user_id}`;
+        const convenerEmail = convener?.email || 'N/A';
+        const designation = convener?.designation || '';
+        const departmentName = p.department_name || convener?.department?.name || 'Unknown Department';
         const tags: string[] = [];
         const lowerStatus = p.status.toLowerCase();
         if (lowerStatus === 'completed') tags.push('Done');
         if (lowerStatus === 'rejected') tags.push('Rejected');
-        // Check if awaiting current role
-        if (lowerStatus === 'pending' && p.awaiting?.toLowerCase() === currentUserRole) tags.push('Awaiting Action');
+        // *** Tag logic now checks against 'chair' ***
+        if (lowerStatus === 'pending' && p.awaiting?.toLowerCase() === apiRoleSegment) tags.push('Awaiting Action');
         if (lowerStatus === 'review') tags.push('Review');
+        let userDepartmentValue: string | number | { id: number; name: string; };
+        if (convener?.department) {
+            if (typeof convener.department === 'object' && convener.department !== null && 'id' in convener.department && 'name' in convener.department) {
+                userDepartmentValue = convener.department;
+            } else if (typeof convener.department === 'string' || typeof convener.department === 'number') {
+                userDepartmentValue = convener.department;
+            } else {
+                userDepartmentValue = convener.dept_id;
+            }
+        } else {
+            userDepartmentValue = convener?.dept_id ?? -1;
+        }
 
         return {
             id: String(p.id),
             title: p.title || 'Untitled Proposal',
             status: p.status === 'completed' ? 'Approved' : capitalize(p.status) as 'Pending' | 'Rejected' | 'Review',
             date: p.start || '',
-            organizer: departmentName, // Use department name
-            convenerName: convenerName,
-            convenerEmail: convenerEmail,
+            organizer: departmentName,
+            convenerName,
+            convenerEmail,
             submissionTimestamp: p.created_at || '',
             description: p.description || '',
             category: p.category || 'Uncategorized',
@@ -167,47 +295,65 @@ const ChairDashboard: React.FC = () => {
             eventDescription: p.description || '',
             eventTitle: p.title || 'Untitled Proposal',
             cost: calculatedCost,
-            detailedBudget: [], // Populated by detail fetch
+            detailedBudget: [],
             estimatedBudget: calculatedCost,
             email: convenerEmail,
-            designation: designation,
+            designation,
             organizingDepartment: departmentName,
             department_name: departmentName,
             fundingDetails: { universityFund: p.fund_uni, registrationFund: p.fund_registration, sponsorshipFund: p.fund_sponsor, otherSourcesFund: p.fund_others },
-            sponsorshipDetails: [], // Populated by detail fetch
+            sponsorshipDetails: [],
             pastEvents: p.past || '',
             relevantDetails: p.other || '',
-            tags: tags,
-            messages: [], // Populated by detail fetch
+            tags,
+            messages: [],
             awaiting: p.awaiting,
-            chief: null, // Populated by detail fetch
-            user: p.faculty ? { name: p.faculty.name, department: p.faculty.dept_id, email: p.faculty.email, role: p.faculty.role, designation: p.faculty.designation, dept_id: p.faculty.dept_id } : null,
-            // Add other fields as needed, mapping from ProposalListItem
+            chief: null,
+            user: convener
+                ? { name: convener.name, department: userDepartmentValue, email: convener.email, role: convener.role, designation: convener.designation, dept_id: convener.dept_id }
+                : null,
         };
-    };
+    }, [apiRoleSegment]); // *** Dependency updated ***
 
-    const mapDetailResponseToUnifiedProposal = (detailData: DetailedProposalResponse): UnifiedProposal => {
-        // Similar to DeanDashboard, but ensure all fields are mapped correctly
+    // mapDetailResponseToUnifiedProposal callback (logic depends on apiRoleSegment for 'Awaiting Action' tag)
+    const mapDetailResponseToUnifiedProposal = useCallback((detailData: DetailedProposalResponse): UnifiedProposal => {
         const p = detailData.proposal;
-        const submitter = detailData.user || p.faculty; // Prioritize top-level user if available
+        const submitter = detailData.user || p.faculty;
         const chiefGuest = detailData.chief;
         const calculatedCost = (p.fund_uni ?? 0) + (p.fund_registration ?? 0) + (p.fund_sponsor ?? 0) + (p.fund_others ?? 0);
         const convenerName = submitter?.name || `User ID: ${p.user_id}`;
         const convenerEmail = submitter?.email || 'N/A';
         const designation = submitter?.designation || '';
-        const departmentName = detailData.department_name || submitter?.department?.name || 'Unknown Department';
-
+        const departmentName =
+            detailData.department_name ||
+            (submitter?.department && typeof submitter.department === 'object' && submitter.department !== null && 'name' in submitter.department
+                ? submitter.department.name
+                : undefined) ||
+            p.department_name ||
+            (p.faculty?.department ? p.faculty.department.name : undefined) ||
+            'Unknown Department';
         const tags: string[] = [];
         const lowerStatus = p.status.toLowerCase();
-         if (lowerStatus === 'completed') tags.push('Done');
-         if (lowerStatus === 'rejected') tags.push('Rejected');
-         if (lowerStatus === 'pending' && p.awaiting?.toLowerCase() === currentUserRole) tags.push('Awaiting Action');
-         if (lowerStatus === 'review') tags.push('Review');
-
+        if (lowerStatus === 'completed') tags.push('Done');
+        if (lowerStatus === 'rejected') tags.push('Rejected');
+        // *** Tag logic now checks against 'chair' ***
+        if (lowerStatus === 'pending' && p.awaiting?.toLowerCase() === apiRoleSegment) tags.push('Awaiting Action');
+        if (lowerStatus === 'review') tags.push('Review');
         let rejectionMsg = '';
         if (p.status === 'rejected') {
-            // Find the last rejection message, maybe? API structure dependent.
-            rejectionMsg = detailData.messages?.slice().reverse().find(msg => msg.message.toLowerCase().includes('reject'))?.message || 'Rejected';
+            rejectionMsg = detailData.messages?.slice().reverse().find(msg => msg.message.toLowerCase().includes('reject'))?.message || 'Rejected (Reason not specified)';
+        }
+        let userDepartmentValue: string | number | { id: number; name: string; };
+        if (submitter?.department) {
+            if (typeof submitter.department === 'object' && submitter.department !== null && 'id' in submitter.department && 'name' in submitter.department) {
+                userDepartmentValue = submitter.department;
+            } else if (typeof submitter.department === 'string' || typeof submitter.department === 'number') {
+                userDepartmentValue = submitter.department;
+            } else {
+                userDepartmentValue = submitter.dept_id;
+            }
+        } else {
+            userDepartmentValue = submitter?.dept_id ?? -1;
         }
 
         return {
@@ -216,8 +362,8 @@ const ChairDashboard: React.FC = () => {
             status: p.status === 'completed' ? 'Approved' : capitalize(p.status) as 'Pending' | 'Rejected' | 'Review',
             date: p.start || '',
             organizer: departmentName,
-            convenerName: convenerName,
-            convenerEmail: convenerEmail,
+            convenerName,
+            convenerEmail,
             submissionTimestamp: p.created_at || '',
             description: p.description || '',
             category: p.category || 'Uncategorized',
@@ -230,135 +376,174 @@ const ChairDashboard: React.FC = () => {
             detailedBudget: detailData.items || [],
             estimatedBudget: calculatedCost,
             email: convenerEmail,
-            designation: designation,
+            designation,
             organizingDepartment: departmentName,
             department_name: departmentName,
             fundingDetails: { universityFund: p.fund_uni, registrationFund: p.fund_registration, sponsorshipFund: p.fund_sponsor, otherSourcesFund: p.fund_others },
             sponsorshipDetails: detailData.sponsors || [],
             pastEvents: p.past || '',
             relevantDetails: p.other || '',
-            tags: tags,
+            tags,
             messages: detailData.messages || [],
             awaiting: p.awaiting,
             chief: chiefGuest,
-            user: submitter ? { name: submitter.name, department: submitter.dept_id, email: submitter.email, role: submitter.role, designation: submitter.designation, dept_id: submitter.dept_id } : null,
+            user: submitter
+                ? { name: submitter.name, department: userDepartmentValue, email: submitter.email, role: submitter.role, designation: submitter.designation, dept_id: submitter.dept_id }
+                : null,
             rejectionMessage: rejectionMsg,
-             // Map other fields from DetailedProposalResponse if necessary
-             // location: ???, durationEvent: ???, etc. - Add based on your API response
         };
-    };
+    }, [apiRoleSegment]); // *** Dependency updated ***
 
-    const mapUnifiedToSimplifiedProposal = (p: UnifiedProposal): Proposal => ({
-        id: p.id, title: p.title, status: p.status, date: p.date, organizer: p.organizer, convenerName: p.convenerName, awaiting: p.awaiting
-    });
+    // mapUnifiedToSimplifiedProposal callback (unchanged)
+    const mapUnifiedToSimplifiedProposal = useCallback((p: UnifiedProposal): Proposal => ({
+        id: p.id,
+        title: p.title,
+        status: p.status,
+        date: p.date,
+        organizer: p.organizer,
+        convenerName: p.convenerName,
+        awaiting: p.awaiting,
+    }), []);
 
+    // handleProposalClick callback (unchanged logic, relies on fetchProposalDetail)
     const handleProposalClick = useCallback(async (proposal: Proposal) => {
         const proposalId = proposal.id ? String(proposal.id).trim() : null;
-        if (proposalId && !isNaN(parseInt(proposalId, 10))) {
-            const numericId = parseInt(proposalId, 10);
-            console.log(`${capitalize(currentUserRole)}Dashboard: Proposal clicked: ID ${numericId}`);
-            const detailedProposal = await fetchProposalDetail(numericId);
-            if (detailedProposal) {
-                setSelectedProposal(detailedProposal);
-                setError(null); // Clear list error if detail fetch succeeds
-            } else {
-                // fetchProposalDetail already sets fetchError, so no need to set main error here
-                 // Optionally, show a generic error if detail fetch fails without a specific message
-                 if (!fetchError) {
-                    setError(`Could not load details for proposal ${proposalId}.`);
-                 }
-            }
-        } else {
-            console.error(`${capitalize(currentUserRole)}Dashboard: Invalid proposal ID clicked:`, proposal.id);
-            setError('Selected proposal has an invalid ID.');
+        if (!proposalId || isNaN(parseInt(proposalId, 10))) {
+            setPopupState(prev => ({ ...prev, fetchError: 'Selected proposal has an invalid ID.', selectedProposal: null, isLoading: false }));
+            return;
         }
-    }, [fetchProposalDetail, currentUserRole, fetchError]); // Include fetchError to avoid resetting it unintentionally
+        const numericId = parseInt(proposalId, 10);
+        setPopupState(prev => ({ ...prev, selectedProposal: null, fetchError: null, isLoading: true }));
+        await fetchProposalDetail(numericId);
+    }, [fetchProposalDetail]);
 
-    const closePopup = () => {
-        setSelectedProposal(null);
-        setFetchError(null); // Clear popup-specific error on close
-    };
+    // closePopup callback (unchanged)
+    const closePopup = useCallback(() => {
+        setPopupState(prev => ({ ...prev, selectedProposal: null, fetchError: null, isLoading: false }));
+    }, []);
 
-    // Derive lists for child components
-    const unifiedProposals: UnifiedProposal[] = proposals.map(mapListItemToUnifiedProposal);
+    // handlePopupUpdate callback (unchanged logic, relies on fetchProposals, closePopup)
+    const handlePopupUpdate = useCallback(() => {
+        fetchProposals();
+        closePopup();
+    }, [fetchProposals, closePopup]);
+
+    // useEffect hook for initial data fetch
+    useEffect(() => {
+        if (user?.role === expectedUserRole) {
+            fetchProposals();
+        } else {
+            setDashboardState({
+                loading: false,
+                // *** Updated error message ***
+                error: user
+                    ? `Access denied. This dashboard is for ${capitalize(expectedUserRole)}s only.`
+                    : "User not authenticated.",
+                proposals: [],
+            });
+        }
+        // Ensure all dependencies that influence fetching or role checks are included
+    }, [fetchProposals, user, expectedUserRole]);
+
+    // Prepare data for child components
+    const stats = calculateStats(dashboardState.proposals);
+    const unifiedProposals: UnifiedProposal[] = dashboardState.proposals.map(mapListItemToUnifiedProposal);
     const proposalsForView: Proposal[] = unifiedProposals.map(mapUnifiedToSimplifiedProposal);
-    const recentsForView: Proposal[] = recentAppliedProposals.map(mapListItemToUnifiedProposal).map(mapUnifiedToSimplifiedProposal);
 
-    // --- RENDER SECTION ---
+    // Recents logic (unchanged structure)
+    const recentAppliedProposals = Array.isArray(dashboardState.proposals)
+        ? [...dashboardState.proposals]
+            .filter(p => p && p.created_at)
+            .sort((a, b) => new Date(b.created_at!).getTime() - new Date(a.created_at!).getTime())
+            .slice(0, 5)
+        : [];
+    const recentsForView: Proposal[] = recentAppliedProposals
+        .map(mapListItemToUnifiedProposal)
+        .map(mapUnifiedToSimplifiedProposal);
+
+    // Render JSX
     return (
-        <div className="chair-dashboard p-4 md:p-6 space-y-6 bg-gray-50 text-gray-900 min-h-screen"> {/* Adjusted styles */}
+        <div className="chair-dashboard p-4 md:p-6 space-y-6 bg-gray-50 text-gray-900 min-h-screen"> {/* *** Class name updated *** */}
             <h1 className="text-2xl md:text-3xl font-bold text-slate-800 mb-6 border-b pb-3">
-                Chair Dashboard
+                {capitalize(expectedUserRole)} Dashboard {/* *** Title uses dynamic role *** */}
             </h1>
 
-            {/* Loading State */}
-            {loading && <div className="flex justify-center items-center h-64"><span className="loading loading-spinner loading-lg text-blue-600"></span><p className='ml-3'>Loading proposals...</p></div>}
+            {/* Loading state UI (unchanged) */}
+            {dashboardState.loading && (
+                <div className="flex justify-center items-center h-64">
+                    <span className="loading loading-spinner loading-lg text-blue-600"></span>
+                    <p className="ml-3">Loading proposals...</p>
+                </div>
+            )}
 
-            {/* Error State */}
-            {!loading && error && (
-                 <div className="alert alert-error shadow-lg max-w-xl mx-auto">
+            {/* Error state UI (unchanged structure, error messages updated via state) */}
+            {!dashboardState.loading && dashboardState.error && (
+                <div className="alert alert-error shadow-lg max-w-xl mx-auto">
                     <div>
-                        <svg xmlns="http://www.w3.org/2000/svg" className="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                         <span>Error! {error}</span>
-                     </div>
-                 </div>
-             )}
+                        <svg xmlns="http://www.w3.org/2000/svg" className="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span>Error! {dashboardState.error}</span>
+                    </div>
+                </div>
+            )}
 
-            {/* Content When Loaded Successfully */}
-            {!loading && !error && (
+            {/* Main content area (unchanged structure, props passed down) */}
+            {!dashboardState.loading && !dashboardState.error && (
                 <>
                     <Stats {...stats} />
-                    {/* Layout Grid - Removed BillStatus */}
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
-                        {/* Left Column (Overview, Recents) */}
                         <div className="lg:col-span-2 space-y-6">
-                            <Overview
-                                eventProposals={proposalsForView}
-                                handleProposalClick={handleProposalClick}
-                            />
-                            <Recents
-                                recentAppliedProposals={recentsForView}
-                                handleProposalClick={handleProposalClick}
-                            />
+                            <Overview eventProposals={proposalsForView} handleProposalClick={handleProposalClick} />
+                            <Recents recentAppliedProposals={recentsForView} handleProposalClick={handleProposalClick} />
                         </div>
-                        {/* Right Column (Awaiting) */}
                         <div className="space-y-6">
-                            <AwaitingAtU
-                                proposals={unifiedProposals}
-                                userRole={currentUserRole} // Pass the specific role
-                            />
-                             {/* Add other chair-specific components here if needed */}
+                            {/* *** Pass the correct role segment to AwaitingAtU *** */}
+                            <AwaitingAtU proposals={unifiedProposals} userRole={apiRoleSegment} />
                         </div>
                     </div>
-                    {/* Calendar View */}
                     <div className="mt-8 bg-white p-4 rounded-lg shadow">
-                         <h2 className="text-xl font-semibold text-slate-800 mb-4">Event Calendar</h2>
+                        <h2 className="text-xl font-semibold text-slate-800 mb-4">Event Calendar</h2>
                         <CalendarView proposals={unifiedProposals} />
                     </div>
                 </>
             )}
 
-            {/* Popup - Uses the modified Popup component */}
-             {isPopupLoading ? (
-                 <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-60 backdrop-blur-sm">
+            {/* Popup Loading state (unchanged) */}
+            {popupState.isLoading && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-60 backdrop-blur-sm">
                     <span className="loading loading-lg loading-spinner text-white"></span>
-                 </div>
-             ) : selectedProposal ? (
+                </div>
+            )}
+
+             {/* Popup Error state (unchanged structure, error messages updated via state) */}
+            {popupState.fetchError && !popupState.isLoading && (
                 <Popup
-                    selectedProposal={selectedProposal}
+                    selectedProposal={popupState.selectedProposal} // Might be null here, Popup needs to handle this
                     closePopup={closePopup}
-                    onProposalUpdated={() => {
-                        fetchProposals(); // Refresh the list after an action
-                        closePopup(); // Close popup after successful action
-                    }}
+                    onProposalUpdated={() => { }} // No update needed if only showing error
+                    authToken={null}
+                    apiBaseUrl=""
+                    userRole="" // Role irrelevant for just showing fetch error
+                    fetchError={popupState.fetchError} // Pass the error message
+                />
+            )}
+
+            {/* Popup Display state */}
+            {popupState.selectedProposal && !popupState.isLoading && !popupState.fetchError && (
+                <Popup
+                    selectedProposal={popupState.selectedProposal}
+                    closePopup={closePopup}
+                    onProposalUpdated={handlePopupUpdate}
                     authToken={token}
                     apiBaseUrl={apiBaseUrl}
-                    userRole={currentUserRole} // Pass the specific role here
-                    fetchError={fetchError} // Pass the detail fetch error
+                    userRole={apiRoleSegment} // *** Pass the correct role segment to Popup ***
+                    fetchError={null} // No fetch error if proposal loaded
                 />
-            ) : null}
+            )}
         </div>
     );
 };
 
-export default ChairDashboard;
+// Wrap with React.memo if performance optimization is desired
+export default React.memo(ChairDashboard);
