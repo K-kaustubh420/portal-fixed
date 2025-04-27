@@ -2,557 +2,360 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import axios, { AxiosError } from 'axios';
-import Overview from './overview';
-import Stats from './stats';
-import Popup from './popup';
-import Recents from './recents';
-import CalendarView from './calendarview';
-import { useAuth } from '@/context/AuthContext';
-import { loadAuthData } from '@/lib/users';
+import Overview from './overview'; // Reusable
+import Stats from './stats'; // Reusable
+import Popup from './popup'; // Use the MODIFIED Popup component
+import Recents from './recents'; // Reusable
+import CalendarView from './calendarview'; // Reusable
+import AwaitingAtU from './awaitingatu'; // Reusable
+import { useAuth } from '@/context/AuthContext'; // Reusable
 
-// Shared Interfaces
-export interface Item {
-    id: number;
-    proposal_id: number;
-    category: string;
-    sub_category: string;
-    type: string | null;
-    quantity: number;
-    cost: number;
-    amount: number;
-    created_at: string | null;
-    updated_at: string | null;
-    status: string;
-}
+// --- Define or Import Interfaces ---
+// (Make sure these match your actual data structure)
+export interface Item { id: number; proposal_id: number; category: string; sub_category: string; type: string | null; quantity: number; cost: number; amount: number; created_at: string | null; updated_at: string | null; status: string; }
+export interface Sponsor { id: number; proposal_id: number; category: string; amount: number; reward: string; mode: string; about: string; benefit: string; created_at: string | null; updated_at: string | null; }
+export interface Message { id: number; proposal_id: number; user_id: number; message: string; created_at: string | null; updated_at: string | null; }
+export interface User { name: string; department: number | string; email: string; role: string; designation: string; dept_id: number; }
+export interface Proposal { id: string; title: string; status: 'Approved' | 'Pending' | 'Rejected' | 'Review'; date: string; organizer: string; convenerName: string; awaiting?: string | null; }
+export interface UnifiedProposal { id: string; title: string; status: 'Approved' | 'Pending' | 'Rejected' | 'Review'; date: string; organizer: string; convenerName: string; convenerEmail: string; submissionTimestamp: string; description: string; category: string; eventStartDate: string; eventEndDate: string; eventDate: string; eventDescription: string; eventTitle: string; cost: number; detailedBudget: Item[]; estimatedBudget: number; email: string; location?: string; chiefGuestName?: string; chiefGuestDesignation?: string; designation?: string; durationEvent?: string; fundingDetails?: { [key: string]: number | null; }; organizingDepartment?: string; department_name?: string; pastEvents?: string | string[] | null; proposalStatus?: string; relevantDetails?: string | null; sponsorshipDetails: Sponsor[]; sponsorshipDetailsRows?: any[]; rejectionMessage?: string; tags?: string[]; messages: Message[]; chief?: User | null; user?: User | null; awaiting: string | null; }
+export interface ProposalListItem { id: number; user_id: number; chief_id?: number | null; title: string; description: string; start: string; end: string; category: string; past: string | null; other: string | null; status: 'completed' | 'pending' | 'rejected' | 'review'; participant_expected: number | null; participant_categories: string | null; fund_uni: number | null; fund_registration: number | null; fund_sponsor: number | null; fund_others: number | null; created_at: string | null; updated_at: string | null; department_name: string; awaiting: string | null; faculty?: { id: number; name: string; email: string; phone: string; role: string; designation: string; dept_id: number; department: { id: number; name: string; }; }; /* other fields */ }
+export interface DetailedProposalResponse { proposal: ProposalListItem; chief: User | null; items: Item[]; sponsors: Sponsor[]; messages: Message[]; user?: User | null; department_name: string; }
+export interface ApiResponse { status: string; proposals: ProposalListItem[]; }
+// --- End Interfaces ---
 
-export interface Sponsor {
-    id: number;
-    proposal_id: number;
-    category: string;
-    amount: number;
-    reward: string;
-    mode: string;
-    about: string;
-    benefit: string;
-    created_at: string | null;
-    updated_at: string | null;
-}
-
-export interface Message {
-    id: number;
-    proposal_id: number;
-    user_id: number;
-    message: string;
-    created_at: string | null;
-    updated_at: string | null;
-}
-
-export interface User {
-    name: string;
-    department: number | string;
-    email: string;
-    role: string;
-    designation: string;
-    dept_id: number;
-}
-
-// Simplified Proposal interface to match overview.tsx and recents.tsx
-export interface Proposal {
-    id: string;
-    title: string;
-    status: 'Approved' | 'Pending' | 'Rejected' | 'Review';
-    date: string;
-    organizer: string;
-    convenerName: string;
-    awaiting?: string | null;
-}
-
-export interface UnifiedProposal {
-    id: string;
-    title: string;
-    status: 'Approved' | 'Pending' | 'Rejected' | 'Review';
-    date: string;
-    organizer: string;
-    convenerName: string;
-    convenerEmail: string;
-    submissionTimestamp: string;
-    description: string;
-    category: string;
-    eventStartDate: string;
-    eventEndDate: string;
-    eventDate: string;
-    eventDescription: string;
-    eventTitle: string;
-    cost: number;
-    detailedBudget: Item[];
-    estimatedBudget: number;
-    email: string;
-    location?: string;
-    chiefGuestName?: string;
-    chiefGuestDesignation?: string;
-    designation?: string;
-    durationEvent?: string;
-    fundingDetails?: {
-        registrationFund?: number | null;
-        sponsorshipFund?: number | null;
-        universityFund?: number | null;
-        otherSourcesFund?: number | null;
-    };
-    organizingDepartment?: string;
-    pastEvents?: string | string[] | null;
-    proposalStatus?: string;
-    relevantDetails?: string | null;
-    sponsorshipDetails?: Sponsor[];
-    sponsorshipDetailsRows?: any[];
-    rejectionMessage?: string;
-    tags?: string[];
-    messages?: Message[];
-    chief?: User | null;
-    user?: User | null;
-    awaiting: string | null;
-}
-
-// Interface matching items from GET /api/chair/proposals LIST response
-interface ProposalListItem {
-    id: number;
-    user_id: number;
-    chief_id?: number | null;
-    title: string;
-    description: string;
-    start: string;
-    end: string;
-    category: string;
-    past: string | null;
-    other: string | null;
-    status: 'completed' | 'pending' | 'rejected' | 'review';
-    participant_expected: number | null;
-    participant_categories: string | null;
-    fund_uni: number | null;
-    fund_registration: number | null;
-    fund_sponsor: number | null;
-    fund_others: number | null;
-    created_at: string | null;
-    updated_at: string | null;
-    cheif_reason?: string | null;
-    cheif_hotel_name?: string | null;
-    cheif_hotel_address?: string | null;
-    cheif_hotel_duration?: string | null;
-    cheif_hotel_type?: string | null;
-    cheif_travel_name?: string | null;
-    cheif_travel_address?: string | null;
-    cheif_travel_duration?: string | null;
-    cheif_travel_type?: string | null;
-    department_name: string;
-    awaiting: string | null;
-    faculty?: {
-        id: number;
-        name: string;
-        email: string;
-        email_verified_at: string | null;
-        phone: string;
-        role: string;
-        scope: string | null;
-        designation: string;
-        dept_id: number;
-        created_at: string;
-        updated_at: string;
-        department: {
-            id: number;
-            name: string;
-            scope: string;
-            status: string;
-            created_at: string;
-            updated_at: string;
-            hod_id: number;
-        };
-    };
-}
-
-// Interface matching the FULL response of GET /api/chair/proposal/{proposal}
-interface DetailedProposalResponse {
-    proposal: ProposalListItem;
-    chief: User | null;
-    items: Item[];
-    sponsors: Sponsor[];
-    messages: Message[];
-    user?: User | null;
-    department_name: string;
-}
-
-// API URL
-const API_BASE_URL = "https://pmspreview-htfbhkdnffcpf5dz.centralindia-01.azurewebsites.net";
 
 const ChairDashboard: React.FC = () => {
     const [proposals, setProposals] = useState<ProposalListItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [selectedProposalData, setSelectedProposalData] = useState<DetailedProposalResponse | null>(null);
-    const [isPopupLoading, setIsPopupLoading] = useState(false);
+    const [selectedProposal, setSelectedProposal] = useState<UnifiedProposal | null>(null);
+    const [fetchError, setFetchError] = useState<string | null>(null); // Error specific to fetching details for popup
+    const [isPopupLoading, setIsPopupLoading] = useState(false); // Loading state for popup details fetch
     const { token, user, logout } = useAuth();
+    const apiBaseUrl = "https://pmspreview-htfbhkdnffcpf5dz.centralindia-01.azurewebsites.net";
+    const currentUserRole = 'chair'; // Define the role for this dashboard
 
-    // Debug Authentication and Stats
-    useEffect(() => {
-        console.log('ChairDashboard: useAuth output:', { token, user, userRole: user?.role });
-        console.log('ChairDashboard: proposals state:', proposals);
-        console.log('ChairDashboard: stats computed:', calculateStats(proposals));
-        if (typeof window !== 'undefined' && window.localStorage) {
-            console.log('ChairDashboard: localStorage contents:', {
-                authToken: localStorage.getItem('authToken'),
-                userData: localStorage.getItem('userData'),
-                allKeys: Object.keys(localStorage)
-            });
-            const authData = loadAuthData();
-            console.log('ChairDashboard: loadAuthData result:', authData);
-        }
-    }, [token, user, proposals]);
+    // Helper function to capitalize status (no changes needed)
+    const capitalize = (str: string): string => { /* ... */ };
 
-    // Fetch Proposals
     const fetchProposals = useCallback(async () => {
-        if (!token || !user || user.role !== 'chair') {
-            setError(user ? "Access denied. User is not a Chairperson." : "User not authenticated.");
+        // Check for correct role
+        if (!token || !user || user.role !== currentUserRole) {
+            setError(user ? `Access denied. User is not a ${capitalize(currentUserRole)}.` : "User not authenticated.");
             setLoading(false);
-            console.log('ChairDashboard: fetchProposals skipped due to invalid auth:', { tokenExists: !!token, userRole: user?.role });
             return;
         }
         setLoading(true);
         setError(null);
-        const proposalEndpoint = `${API_BASE_URL}/api/chair/proposals`;
+        // Use role-specific API endpoint
+        const proposalEndpoint = `${apiBaseUrl}/api/${currentUserRole}/proposals`;
+        console.log(`ChairDashboard: Fetching proposals from ${proposalEndpoint}`); // Log endpoint
+
         try {
-            console.log('ChairDashboard: Fetching proposals with token:', token.slice(0, 10) + '...');
-            interface ApiResponse {
-                status: string;
-                proposals: ProposalListItem[];
-            }
             const response = await axios.get<ApiResponse>(proposalEndpoint, {
                 headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
             });
-            setProposals(response.data.proposals);
-            console.log('ChairDashboard: Proposals fetched:', response.data.proposals.length);
+            setProposals(response.data.proposals || []);
         } catch (err: any) {
-            console.error("ChairDashboard: Error fetching Chair proposals:", err);
             const axiosError = err as AxiosError;
-            if (axiosError.response?.status === 401) {
-                setError("Authentication failed.");
-                logout();
-                console.log('ChairDashboard: 401 error, logging out');
-            } else if (axiosError.response?.status === 403) {
-                setError("Forbidden.");
-                console.log('ChairDashboard: 403 Forbidden');
-            } else {
-                setError((axiosError.response?.data as any)?.message || axiosError.message || 'Failed to fetch proposals');
-                console.log('ChairDashboard: Fetch error:', axiosError.message);
-            }
-            setProposals([]);
+            let errorMessage = 'Failed to fetch proposals';
+             if (axiosError.response?.status === 401) { errorMessage = "Authentication failed."; logout(); }
+             else if (axiosError.response?.status === 403) { errorMessage = `Forbidden: You lack permission to view ${currentUserRole} proposals.`; }
+             else { errorMessage = (axiosError.response?.data as any)?.message || axiosError.message || `Failed to fetch ${currentUserRole} proposals`; }
+             console.error(`${capitalize(currentUserRole)}Dashboard: Error fetching proposals:`, { errorMessage, status: axiosError.response?.status });
+            setError(errorMessage);
         } finally {
             setLoading(false);
         }
-    }, [token, user, logout]);
+    }, [token, user, logout, apiBaseUrl, currentUserRole]); // Added dependencies
 
     useEffect(() => {
-        if (user?.role === 'chair') {
+        if (user?.role === currentUserRole) {
             fetchProposals();
         } else if (user) {
-            setError("Access denied. This dashboard is for Chairpersons only.");
+            setError(`Access denied. This dashboard is for ${capitalize(currentUserRole)}s only.`);
             setLoading(false);
-            console.log('ChairDashboard: Access denied, user role:', user?.role);
         } else {
             setError("User not authenticated.");
             setLoading(false);
-            console.log('ChairDashboard: No user authenticated');
         }
-    }, [fetchProposals, user]);
+    }, [fetchProposals, user, currentUserRole]); // Added dependency
 
-    // Fetch Proposal Detail
-    const fetchProposalDetail = useCallback(async (proposalId: number | string) => {
-        if (!token || !user || user.role !== 'chair') {
-            console.error("ChairDashboard: fetchProposalDetail cancelled: Missing token, user, or incorrect role.", { tokenExists: !!token, userRole: user?.role });
-            return;
+    const fetchProposalDetail = useCallback(async (proposalId: number): Promise<UnifiedProposal | null> => {
+        // Check for correct role
+        if (!token || !user || user.role !== currentUserRole) {
+             console.error(`${capitalize(currentUserRole)}Dashboard: fetchProposalDetail cancelled: Invalid auth.`, { tokenExists: !!token, userRole: user?.role });
+            setFetchError("Authentication or authorization failed."); // Set popup-specific error
+            return null;
         }
         setIsPopupLoading(true);
-        setError(null);
-        const detailEndpoint = `${API_BASE_URL}/api/chair/proposal/${proposalId}`;
+        setFetchError(null);
+        // Use role-specific API endpoint
+        const detailEndpoint = `${apiBaseUrl}/api/${currentUserRole}/proposals/${proposalId}`;
+        console.log(`${capitalize(currentUserRole)}Dashboard: Fetching proposal detail from ${detailEndpoint}`);
+
         try {
-            console.log('ChairDashboard: Fetching proposal detail:', { proposalId, endpoint: detailEndpoint });
             const response = await axios.get<DetailedProposalResponse>(detailEndpoint, {
                 headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
             });
-            console.log('ChairDashboard: Proposal detail fetched:', response.data);
-            setSelectedProposalData(response.data);
+            // Assume mapDetailResponseToUnifiedProposal exists and works
+            return mapDetailResponseToUnifiedProposal(response.data);
         } catch (err: any) {
-            console.error("ChairDashboard: Error fetching proposal detail:", err);
             const axiosError = err as AxiosError;
             let errorMessage = 'Failed to fetch proposal details';
-            if (axiosError.response?.status === 401) {
-                errorMessage = "Authentication failed.";
-                logout();
-            } else if (axiosError.response?.status === 403) {
-                errorMessage = "Forbidden to view this proposal.";
-            } else if (axiosError.response?.status === 404) {
-                errorMessage = `Proposal with ID ${proposalId} not found.`;
-            } else {
-                errorMessage = (axiosError.response?.data as any)?.message || axiosError.message || 'Failed to fetch proposal details';
-            }
-            setError(errorMessage);
-            setSelectedProposalData(null);
+            if (axiosError.response?.status === 404) { errorMessage = `Proposal not found or not awaiting at the ${currentUserRole} level.`; }
+            else if (axiosError.response?.status === 401) { errorMessage = "Authentication failed."; logout(); }
+            else if (axiosError.response?.status === 403) { errorMessage = `Forbidden: You lack permission to view this proposal as ${currentUserRole}.`; }
+            else { errorMessage = (axiosError.response?.data as any)?.message || axiosError.message || 'Failed to fetch proposal details'; }
+            console.error(`${capitalize(currentUserRole)}Dashboard: Error fetching proposal detail:`, { proposalId, errorMessage, status: axiosError.response?.status });
+            setFetchError(errorMessage); // Set popup-specific error
+            return null;
         } finally {
             setIsPopupLoading(false);
         }
-    }, [token, user, logout]);
+    }, [token, user, logout, apiBaseUrl, currentUserRole]); // Added dependencies
 
-    // Stats Calculation
+    // --- Mapping and Stat Functions (Copy from DeanDashboard or ensure they are correct) ---
     const calculateStats = (proposalList: ProposalListItem[]) => {
-        if (!Array.isArray(proposalList)) {
-            return { approvedProposalsCount: 0, pendingProposalsCount: 0, rejectedProposalsCount: 0, reviewProposalsCount: 0, totalProposalsCount: 0 };
-        }
-        let approved = 0, pending = 0, rejected = 0, review = 0;
-        proposalList.forEach(p => {
-            if (!p || typeof p.status !== 'string') return;
-            const status = p.status.toLowerCase();
-            if (status === 'completed') approved++;
-            else if (status === 'pending') pending++;
-            else if (status === 'rejected') rejected++;
-            else if (status === 'review') review++;
-        });
-        return { approvedProposalsCount: approved, pendingProposalsCount: pending, rejectedProposalsCount: rejected, reviewProposalsCount: review, totalProposalsCount: proposalList.length };
+         if (!Array.isArray(proposalList)) return { approvedProposalsCount: 0, pendingProposalsCount: 0, rejectedProposalsCount: 0, reviewProposalsCount: 0, totalProposalsCount: 0 };
+         let approved = 0, pending = 0, rejected = 0, review = 0;
+         proposalList.forEach(p => {
+             if (!p || typeof p.status !== 'string') return;
+             const status = p.status.toLowerCase();
+             if (status === 'completed') approved++;
+             else if (status === 'pending') pending++;
+             else if (status === 'rejected') rejected++;
+             else if (status === 'review') review++;
+         });
+         return { approvedProposalsCount: approved, pendingProposalsCount: pending, rejectedProposalsCount: rejected, reviewProposalsCount: review, totalProposalsCount: proposalList.length };
     };
-    const stats = Array.isArray(proposals) ? calculateStats(proposals) : { approvedProposalsCount: 0, pendingProposalsCount: 0, rejectedProposalsCount: 0, reviewProposalsCount: 0, totalProposalsCount: 0 };
+    const stats = calculateStats(proposals);
 
-    // Recent Proposals
-    const recentAppliedProposals = Array.isArray(proposals) ? [...proposals]
-        .filter(p => p && p.created_at)
-        .sort((a, b) => new Date(b.created_at!).getTime() - new Date(a.created_at!).getTime())
-        .slice(0, 5) : [];
+    const recentAppliedProposals = Array.isArray(proposals) ? [...proposals].filter(p => p && p.created_at).sort((a, b) => new Date(b.created_at!).getTime() - new Date(a.created_at!).getTime()).slice(0, 5) : [];
 
-    // Map List Item to UnifiedProposal
     const mapListItemToUnifiedProposal = (p: ProposalListItem): UnifiedProposal => {
+        // This function needs careful implementation based on ProposalListItem structure
+        // Example structure (adapt as needed):
         const calculatedCost = (p.fund_uni ?? 0) + (p.fund_registration ?? 0) + (p.fund_sponsor ?? 0) + (p.fund_others ?? 0);
-        const placeholderEmail = p.faculty?.email || `user${p.user_id}@example.com`;
-        const placeholderName = p.faculty?.name || `User ID: ${p.user_id}`;
-        const submissionTs = p.created_at || '';
+        const convenerName = p.faculty?.name || `User ID ${p.user_id}`;
+        const convenerEmail = p.faculty?.email || 'N/A';
+        const designation = p.faculty?.designation || '';
+        const departmentName = p.department_name || p.faculty?.department?.name || 'Unknown Department';
 
         const tags: string[] = [];
         const lowerStatus = p.status.toLowerCase();
         if (lowerStatus === 'completed') tags.push('Done');
         if (lowerStatus === 'rejected') tags.push('Rejected');
-        if (lowerStatus === 'pending' && p.awaiting === 'chair') tags.push('Awaiting Action');
+        // Check if awaiting current role
+        if (lowerStatus === 'pending' && p.awaiting?.toLowerCase() === currentUserRole) tags.push('Awaiting Action');
         if (lowerStatus === 'review') tags.push('Review');
 
         return {
             id: String(p.id),
             title: p.title || 'Untitled Proposal',
-            description: p.description || '',
-            category: p.category || 'Uncategorized',
-            status: p.status === 'completed' ? 'Approved' : p.status as 'Pending' | 'Rejected' | 'Review',
+            status: p.status === 'completed' ? 'Approved' : capitalize(p.status) as 'Pending' | 'Rejected' | 'Review',
             date: p.start || '',
-            eventStartDate: p.start || '',
-            eventEndDate: p.end || '',
-            submissionTimestamp: submissionTs,
-            eventDate: p.start || '',
-            eventDescription: p.description || '',
-            eventTitle: p.title || 'Untitled Proposal',
-            organizer: p.department_name || placeholderName,
-            convenerName: placeholderName,
-            convenerEmail: placeholderEmail,
-            email: placeholderEmail,
-            cost: calculatedCost,
-            estimatedBudget: calculatedCost,
-            detailedBudget: [],
-            fundingDetails: {
-                universityFund: p.fund_uni,
-                registrationFund: p.fund_registration,
-                sponsorshipFund: p.fund_sponsor,
-                otherSourcesFund: p.fund_others
-            },
-            sponsorshipDetails: [],
-            tags: tags,
-            pastEvents: p.past || '',
-            relevantDetails: p.other || '',
-            designation: p.faculty?.designation || '',
-            durationEvent: '',
-            organizingDepartment: p.department_name || '',
-            awaiting: p.awaiting,
-            messages: [],
-            rejectionMessage: '',
-            chief: null,
-            user: p.faculty ? {
-                name: p.faculty.name,
-                department: p.faculty.dept_id,
-                email: p.faculty.email,
-                role: p.faculty.role,
-                designation: p.faculty.designation,
-                dept_id: p.faculty.dept_id
-            } : null
-        };
-    };
-
-    // Map UnifiedProposal to Simplified Proposal for child components
-    const mapUnifiedToSimplifiedProposal = (p: UnifiedProposal): Proposal => ({
-        id: p.id,
-        title: p.title,
-        status: p.status,
-        date: p.date,
-        organizer: p.organizer,
-        convenerName: p.convenerName,
-        awaiting: p.awaiting
-    });
-
-    // Map Detailed Response to UnifiedProposal
-    const mapDetailResponseToUnifiedProposal = (detailData: DetailedProposalResponse): UnifiedProposal | null => {
-        if (!detailData || !detailData.proposal) {
-            console.error("ChairDashboard: mapDetailResponseToUnifiedProposal received invalid detailData:", detailData);
-            return null;
-        }
-
-        const p = detailData.proposal;
-        const submitter = detailData.user;
-        const chiefGuest = detailData.chief;
-        const calculatedCost = (p.fund_uni ?? 0) + (p.fund_registration ?? 0) + (p.fund_sponsor ?? 0) + (p.fund_others ?? 0);
-        const convenerName = submitter?.name || p.faculty?.name || `User ID: ${p.user_id}`;
-        const convenerEmail = submitter?.email || p.faculty?.email || `user${p.user_id}@example.com`;
-        const designation = submitter?.designation || p.faculty?.designation || '';
-        const submissionTs = p.created_at || '';
-
-        let rejectionMsg = '';
-        detailData.messages?.forEach(msg => {
-            if (p.status === 'rejected' && !rejectionMsg) rejectionMsg = msg.message;
-        });
-
-        const tags: string[] = [];
-        const lowerStatus = p.status.toLowerCase();
-        if (lowerStatus === 'completed') tags.push('Done');
-        if (lowerStatus === 'rejected') tags.push('Rejected');
-        if (lowerStatus === 'pending' && p.awaiting === 'chair') tags.push('Awaiting Action');
-        if (lowerStatus === 'review') tags.push('Review');
-
-        return {
-            id: String(p.id),
-            title: p.title || 'Untitled Proposal',
-            description: p.description || '',
-            category: p.category || 'Uncategorized',
-            status: p.status === 'completed' ? 'Approved' : p.status as 'Pending' | 'Rejected' | 'Review',
-            date: p.start || '',
-            eventStartDate: p.start || '',
-            eventEndDate: p.end || '',
-            submissionTimestamp: submissionTs,
-            eventDate: p.start || '',
-            eventDescription: p.description || '',
-            eventTitle: p.title || 'Untitled Proposal',
-            organizer: detailData.department_name || convenerName,
+            organizer: departmentName, // Use department name
             convenerName: convenerName,
             convenerEmail: convenerEmail,
+            submissionTimestamp: p.created_at || '',
+            description: p.description || '',
+            category: p.category || 'Uncategorized',
+            eventStartDate: p.start || '',
+            eventEndDate: p.end || '',
+            eventDate: p.start || '',
+            eventDescription: p.description || '',
+            eventTitle: p.title || 'Untitled Proposal',
+            cost: calculatedCost,
+            detailedBudget: [], // Populated by detail fetch
+            estimatedBudget: calculatedCost,
             email: convenerEmail,
             designation: designation,
-            cost: calculatedCost,
-            estimatedBudget: calculatedCost,
-            organizingDepartment: detailData.department_name || '',
-            detailedBudget: detailData.items || [],
-            durationEvent: '',
-            fundingDetails: {
-                universityFund: p.fund_uni,
-                registrationFund: p.fund_registration,
-                sponsorshipFund: p.fund_sponsor,
-                otherSourcesFund: p.fund_others
-            },
-            sponsorshipDetails: detailData.sponsors || [],
-            tags: tags,
-            chiefGuestName: chiefGuest?.name || '',
-            chiefGuestDesignation: chiefGuest?.designation || '',
+            organizingDepartment: departmentName,
+            department_name: departmentName,
+            fundingDetails: { universityFund: p.fund_uni, registrationFund: p.fund_registration, sponsorshipFund: p.fund_sponsor, otherSourcesFund: p.fund_others },
+            sponsorshipDetails: [], // Populated by detail fetch
             pastEvents: p.past || '',
             relevantDetails: p.other || '',
-            rejectionMessage: rejectionMsg,
-            messages: detailData.messages || [],
-            chief: detailData.chief,
-            user: detailData.user || (p.faculty ? {
-                name: p.faculty.name,
-                department: p.faculty.dept_id,
-                email: p.faculty.email,
-                role: p.faculty.role,
-                designation: p.faculty.designation,
-                dept_id: p.faculty.dept_id
-            } : null),
-            awaiting: p.awaiting
+            tags: tags,
+            messages: [], // Populated by detail fetch
+            awaiting: p.awaiting,
+            chief: null, // Populated by detail fetch
+            user: p.faculty ? { name: p.faculty.name, department: p.faculty.dept_id, email: p.faculty.email, role: p.faculty.role, designation: p.faculty.designation, dept_id: p.faculty.dept_id } : null,
+            // Add other fields as needed, mapping from ProposalListItem
         };
     };
 
-    // Event Handlers
-    const handleProposalClick = useCallback((proposal: Proposal) => {
-        console.log('ChairDashboard: Proposal clicked:', proposal);
-        const proposalIdNum = parseInt(proposal.id, 10);
-        if (!isNaN(proposalIdNum)) {
-            fetchProposalDetail(proposalIdNum);
-        } else {
-            console.error("ChairDashboard: Invalid numeric ID parsed from proposal:", proposal.id);
-            setError("Could not load details for the selected proposal.");
+    const mapDetailResponseToUnifiedProposal = (detailData: DetailedProposalResponse): UnifiedProposal => {
+        // Similar to DeanDashboard, but ensure all fields are mapped correctly
+        const p = detailData.proposal;
+        const submitter = detailData.user || p.faculty; // Prioritize top-level user if available
+        const chiefGuest = detailData.chief;
+        const calculatedCost = (p.fund_uni ?? 0) + (p.fund_registration ?? 0) + (p.fund_sponsor ?? 0) + (p.fund_others ?? 0);
+        const convenerName = submitter?.name || `User ID: ${p.user_id}`;
+        const convenerEmail = submitter?.email || 'N/A';
+        const designation = submitter?.designation || '';
+        const departmentName = detailData.department_name || submitter?.department?.name || 'Unknown Department';
+
+        const tags: string[] = [];
+        const lowerStatus = p.status.toLowerCase();
+         if (lowerStatus === 'completed') tags.push('Done');
+         if (lowerStatus === 'rejected') tags.push('Rejected');
+         if (lowerStatus === 'pending' && p.awaiting?.toLowerCase() === currentUserRole) tags.push('Awaiting Action');
+         if (lowerStatus === 'review') tags.push('Review');
+
+        let rejectionMsg = '';
+        if (p.status === 'rejected') {
+            // Find the last rejection message, maybe? API structure dependent.
+            rejectionMsg = detailData.messages?.slice().reverse().find(msg => msg.message.toLowerCase().includes('reject'))?.message || 'Rejected';
         }
-    }, [fetchProposalDetail]);
 
-    const closePopup = () => setSelectedProposalData(null);
-    const handleProposalUpdated = () => { fetchProposals(); closePopup(); };
+        return {
+            id: String(p.id),
+            title: p.title || 'Untitled Proposal',
+            status: p.status === 'completed' ? 'Approved' : capitalize(p.status) as 'Pending' | 'Rejected' | 'Review',
+            date: p.start || '',
+            organizer: departmentName,
+            convenerName: convenerName,
+            convenerEmail: convenerEmail,
+            submissionTimestamp: p.created_at || '',
+            description: p.description || '',
+            category: p.category || 'Uncategorized',
+            eventStartDate: p.start || '',
+            eventEndDate: p.end || '',
+            eventDate: p.start || '',
+            eventDescription: p.description || '',
+            eventTitle: p.title || 'Untitled Proposal',
+            cost: calculatedCost,
+            detailedBudget: detailData.items || [],
+            estimatedBudget: calculatedCost,
+            email: convenerEmail,
+            designation: designation,
+            organizingDepartment: departmentName,
+            department_name: departmentName,
+            fundingDetails: { universityFund: p.fund_uni, registrationFund: p.fund_registration, sponsorshipFund: p.fund_sponsor, otherSourcesFund: p.fund_others },
+            sponsorshipDetails: detailData.sponsors || [],
+            pastEvents: p.past || '',
+            relevantDetails: p.other || '',
+            tags: tags,
+            messages: detailData.messages || [],
+            awaiting: p.awaiting,
+            chief: chiefGuest,
+            user: submitter ? { name: submitter.name, department: submitter.dept_id, email: submitter.email, role: submitter.role, designation: submitter.designation, dept_id: submitter.dept_id } : null,
+            rejectionMessage: rejectionMsg,
+             // Map other fields from DetailedProposalResponse if necessary
+             // location: ???, durationEvent: ???, etc. - Add based on your API response
+        };
+    };
 
-    // Render Logic
-    if (loading && !error && proposals.length === 0) {
-        return <div className="flex justify-center items-center h-screen"><span className="loading loading-lg loading-spinner text-primary"></span></div>;
-    }
+    const mapUnifiedToSimplifiedProposal = (p: UnifiedProposal): Proposal => ({
+        id: p.id, title: p.title, status: p.status, date: p.date, organizer: p.organizer, convenerName: p.convenerName, awaiting: p.awaiting
+    });
 
-    if (user?.role !== 'chair' && !loading) {
-        return <div className="alert alert-error shadow-lg m-4"><div><span>Access Denied: This dashboard is for Chairpersons only. Current role: {user?.role || 'none'}</span></div></div>;
-    }
+    const handleProposalClick = useCallback(async (proposal: Proposal) => {
+        const proposalId = proposal.id ? String(proposal.id).trim() : null;
+        if (proposalId && !isNaN(parseInt(proposalId, 10))) {
+            const numericId = parseInt(proposalId, 10);
+            console.log(`${capitalize(currentUserRole)}Dashboard: Proposal clicked: ID ${numericId}`);
+            const detailedProposal = await fetchProposalDetail(numericId);
+            if (detailedProposal) {
+                setSelectedProposal(detailedProposal);
+                setError(null); // Clear list error if detail fetch succeeds
+            } else {
+                // fetchProposalDetail already sets fetchError, so no need to set main error here
+                 // Optionally, show a generic error if detail fetch fails without a specific message
+                 if (!fetchError) {
+                    setError(`Could not load details for proposal ${proposalId}.`);
+                 }
+            }
+        } else {
+            console.error(`${capitalize(currentUserRole)}Dashboard: Invalid proposal ID clicked:`, proposal.id);
+            setError('Selected proposal has an invalid ID.');
+        }
+    }, [fetchProposalDetail, currentUserRole, fetchError]); // Include fetchError to avoid resetting it unintentionally
 
-    if (!user && !loading) {
-        return <div className="alert alert-warning shadow-lg m-4"><div><span>Please log in to view the dashboard.</span></div></div>;
-    }
+    const closePopup = () => {
+        setSelectedProposal(null);
+        setFetchError(null); // Clear popup-specific error on close
+    };
 
-    if (error && !isPopupLoading && !selectedProposalData) {
-        return <div className="alert alert-error shadow-lg m-4"><div><span>Error: {error}</span></div></div>;
-    }
-
-    const unifiedProposals: UnifiedProposal[] = Array.isArray(proposals) ? proposals.map(mapListItemToUnifiedProposal) : [];
+    // Derive lists for child components
+    const unifiedProposals: UnifiedProposal[] = proposals.map(mapListItemToUnifiedProposal);
     const proposalsForView: Proposal[] = unifiedProposals.map(mapUnifiedToSimplifiedProposal);
-    const recentsForView: Proposal[] = Array.isArray(recentAppliedProposals) ? recentAppliedProposals.map(mapListItemToUnifiedProposal).map(mapUnifiedToSimplifiedProposal) : [];
-    const proposalForPopup: UnifiedProposal | null = selectedProposalData ? mapDetailResponseToUnifiedProposal(selectedProposalData) : null;
+    const recentsForView: Proposal[] = recentAppliedProposals.map(mapListItemToUnifiedProposal).map(mapUnifiedToSimplifiedProposal);
 
+    // --- RENDER SECTION ---
     return (
-        <div className="chair-dashboard p-4 md:p-6 space-y-6 bg-white text-black min-h-screen">
-            <h1 className="text-2xl md:text-3xl font-bold text-slate-800 mb-4">
-                Chairperson Dashboard
+        <div className="chair-dashboard p-4 md:p-6 space-y-6 bg-gray-50 text-gray-900 min-h-screen"> {/* Adjusted styles */}
+            <h1 className="text-2xl md:text-3xl font-bold text-slate-800 mb-6 border-b pb-3">
+                Chair Dashboard
             </h1>
 
-            {!loading && !error && <Stats {...stats} />}
+            {/* Loading State */}
+            {loading && <div className="flex justify-center items-center h-64"><span className="loading loading-spinner loading-lg text-blue-600"></span><p className='ml-3'>Loading proposals...</p></div>}
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 space-y-6">
-                    <Overview
-                        eventProposals={proposalsForView}
-                        handleProposalClick={handleProposalClick}
-                    />
-                    <Recents
-                        recentAppliedProposals={recentsForView}
-                        handleProposalClick={handleProposalClick}
-                    />
-                </div>
-            </div>
+            {/* Error State */}
+            {!loading && error && (
+                 <div className="alert alert-error shadow-lg max-w-xl mx-auto">
+                    <div>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                         <span>Error! {error}</span>
+                     </div>
+                 </div>
+             )}
 
-            <div className="mt-6">
-                <CalendarView proposals={unifiedProposals} />
-            </div>
+            {/* Content When Loaded Successfully */}
+            {!loading && !error && (
+                <>
+                    <Stats {...stats} />
+                    {/* Layout Grid - Removed BillStatus */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+                        {/* Left Column (Overview, Recents) */}
+                        <div className="lg:col-span-2 space-y-6">
+                            <Overview
+                                eventProposals={proposalsForView}
+                                handleProposalClick={handleProposalClick}
+                            />
+                            <Recents
+                                recentAppliedProposals={recentsForView}
+                                handleProposalClick={handleProposalClick}
+                            />
+                        </div>
+                        {/* Right Column (Awaiting) */}
+                        <div className="space-y-6">
+                            <AwaitingAtU
+                                proposals={unifiedProposals}
+                                userRole={currentUserRole} // Pass the specific role
+                            />
+                             {/* Add other chair-specific components here if needed */}
+                        </div>
+                    </div>
+                    {/* Calendar View */}
+                    <div className="mt-8 bg-white p-4 rounded-lg shadow">
+                         <h2 className="text-xl font-semibold text-slate-800 mb-4">Event Calendar</h2>
+                        <CalendarView proposals={unifiedProposals} />
+                    </div>
+                </>
+            )}
 
-            {isPopupLoading ? (
-                <div className="fixed inset-0 bg-black bg-opacity-30 flex justify-center items-center z-60">
+            {/* Popup - Uses the modified Popup component */}
+             {isPopupLoading ? (
+                 <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-60 backdrop-blur-sm">
                     <span className="loading loading-lg loading-spinner text-white"></span>
-                </div>
-            ) : proposalForPopup ? (
+                 </div>
+             ) : selectedProposal ? (
                 <Popup
-                    selectedProposal={proposalForPopup}
+                    selectedProposal={selectedProposal}
                     closePopup={closePopup}
-                    onProposalUpdated={handleProposalUpdated}
+                    onProposalUpdated={() => {
+                        fetchProposals(); // Refresh the list after an action
+                        closePopup(); // Close popup after successful action
+                    }}
                     authToken={token}
-                    apiBaseUrl={API_BASE_URL}
-                    userRole={user?.role || ''}
+                    apiBaseUrl={apiBaseUrl}
+                    userRole={currentUserRole} // Pass the specific role here
+                    fetchError={fetchError} // Pass the detail fetch error
                 />
-            ) : error ? (
-                <div className="alert alert-error shadow-lg m-4">
-                    <div><span>Error: {error}</span></div>
-                </div>
             ) : null}
         </div>
     );

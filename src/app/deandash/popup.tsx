@@ -141,7 +141,7 @@ const Popup: React.FC<PopupProps> = ({
             return;
         }
         if (!window.confirm('Are you sure you want to approve this proposal?')) return;
-        const approveEndpoint = `${apiBaseUrl}/api/dean/proposals/${safeProposal.id}/approve`;
+        const approveEndpoint = `${apiBaseUrl}/api/dean/proposals/${safeProposal.id}`;
         try {
             setIsLoading(true);
             setErrorMessage(null);
@@ -172,11 +172,11 @@ const Popup: React.FC<PopupProps> = ({
             setErrorMessage('Please enter comments for clarification.');
             return;
         }
-        const clarifyEndpoint = `${apiBaseUrl}/api/dean/proposals/${safeProposal.id}/clarify`;
+        const clarifyEndpoint = `${apiBaseUrl}/api/dean/proposals/${safeProposal.id}`;
         try {
             setIsLoading(true);
             setErrorMessage(null);
-            await axios.post(
+            await axios.put(
                 clarifyEndpoint,
                 { message: clarificationInput },
                 { headers: { Authorization: `Bearer ${authToken}`, Accept: 'application/json', 'Content-Type': 'application/json' } }
@@ -200,14 +200,16 @@ const Popup: React.FC<PopupProps> = ({
             return;
         }
         if (!window.confirm('Are you sure you want to reject this proposal? This action might be irreversible.')) return;
-        const rejectEndpoint = `${apiBaseUrl}/api/dean/proposals/${safeProposal.id}/reject`;
+        const rejectEndpoint = `${apiBaseUrl}/api/dean/proposals/${safeProposal.id}`;
         try {
             setIsLoading(true);
             setErrorMessage(null);
-            await axios.post(
+            await axios.delete(
                 rejectEndpoint,
-                { message: clarificationInput || 'Rejected by Dean' },
-                { headers: { Authorization: `Bearer ${authToken}`, Accept: 'application/json', 'Content-Type': 'application/json' } }
+                {
+                    headers: { Authorization: `Bearer ${authToken}`, Accept: 'application/json', 'Content-Type': 'application/json' },
+                    data: { message: clarificationInput || 'Rejected by Dean' }
+                }
             );
             onProposalUpdated();
             closePopup();

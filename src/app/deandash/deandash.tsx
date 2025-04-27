@@ -192,6 +192,12 @@ const DeanDashboard: React.FC = () => {
     const [isPopupLoading, setIsPopupLoading] = useState(false);
     const { token, user, logout } = useAuth();
 
+    // Helper function to capitalize status
+    const capitalize = (str: string): string => {
+        if (!str) return str;
+        return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+    };
+
     const fetchProposals = useCallback(async () => {
         if (!token || !user || user.role !== 'dean') {
             setError(user ? "Access denied. User is not a Dean." : "User not authenticated.");
@@ -338,7 +344,7 @@ const DeanDashboard: React.FC = () => {
                 title: p.title || 'Untitled Proposal',
                 description: p.description || '',
                 category: p.category || 'Uncategorized',
-                status: p.status === 'completed' ? 'Approved' : p.status as 'Pending' | 'Rejected' | 'Review',
+                status: p.status === 'completed' ? 'Approved' : capitalize(p.status) as 'Pending' | 'Rejected' | 'Review',
                 date: p.start || '',
                 eventStartDate: p.start || '',
                 eventEndDate: p.end || '',
@@ -460,7 +466,7 @@ const DeanDashboard: React.FC = () => {
             title: p.title || 'Untitled Proposal',
             description: p.description || '',
             category: p.category || 'Uncategorized',
-            status: p.status === 'completed' ? 'Approved' : p.status as 'Pending' | 'Rejected' | 'Review',
+            status: p.status === 'completed' ? 'Approved' : capitalize(p.status) as 'Pending' | 'Rejected' | 'Review',
             date: p.start || '',
             eventStartDate: p.start || '',
             eventEndDate: p.end || '',
