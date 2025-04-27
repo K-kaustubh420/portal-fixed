@@ -208,14 +208,12 @@ export default function EventProposalForm() {
         }
     };
 
-    const [dateConflictError, setDateConflictError] = useState<string | null>(null);
+    const [dateConflictError] = useState<string | null>(null);
 
 
     const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         alert("Form Submitted (Frontend Only)");
-
-        // Log all form data to the console
         console.log({
             organizingDepartment,
             eventTitle,

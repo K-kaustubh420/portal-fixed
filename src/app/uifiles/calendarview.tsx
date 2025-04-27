@@ -68,6 +68,12 @@ interface Proposal {
     clarificationMessage?: string;
     tags?: string[]; // Added tags property
 }
+ interface EventClickInfo {
+        event: {
+            extendedProps: Proposal;
+        };
+    }
+
 
 const CalendarView: React.FC = () => {
     const [eventProposals] = useState<Proposal[]>([
@@ -181,8 +187,9 @@ const CalendarView: React.FC = () => {
         };
     });
 
-    const handleEventClick = (clickInfo: any) => {
-        setSelectedEvent(clickInfo.event.extendedProps as Proposal);
+   
+    const handleEventClick = (clickInfo: EventClickInfo) => {
+        setSelectedEvent(clickInfo.event.extendedProps);
     };
 
     const closePopup = () => {

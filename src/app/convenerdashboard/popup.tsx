@@ -1,493 +1,230 @@
 // popup.tsx
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { format, isValid } from 'date-fns'; // Import isValid
-import { X } from 'lucide-react';
-import axios from 'axios';
+import { format, isValid, differenceInCalendarDays } from 'date-fns';
+import { useRouter } from 'next/navigation';
+import { X, User, Users, UserCheck, BedDouble, Car, FileText, Award, DollarSign, Info, CalendarDays, AlertCircle, MessageSquare, Edit } from 'lucide-react';
 
-interface Proposal {
-    id: string;
-    title: string;
-    organizer: string;
-    date: string; // This corresponds to 'start' from the API detail
-    status: string;
-    category: string;
-    cost?: number; // Make optional if sometimes missing
-    email?: string; // Make optional if sometimes missing
-    description: string;
-    location?: string;
-    convenerName: string;
-    convenerEmail: string;
-    chiefGuestName?: string;
-    chiefGuestDesignation?: string;
-    designation?: string; // Make optional if sometimes missing
-    detailedBudget?: { mainCategory: string; subCategory: string; totalAmount?: number }[]; // Make optional
-    durationEvent?: string; // Make optional if sometimes missing
-    estimatedBudget?: number; // Make optional if sometimes missing
-    eventDate?: string; // Potentially redundant with 'date' (start)
-    eventDescription?: string; // Potentially redundant with 'description'
-    eventEndDate: string; // Corresponds to 'end' from the API detail
-    eventStartDate: string; // Corresponds to 'start' from the API detail
-    eventTitle?: string; // Potentially redundant with 'title'
-    fundingDetails?: {
-        registrationFund?: number;
-        sponsorshipFund?: number;
-        universityFund?: number;
-        otherSourcesFund?: number;
-    };
-    organizingDepartment?: string; // Make optional
-    pastEvents?: string | string[]; // Allow string or array based on your actual data
-    proposalStatus?: string; // Potentially redundant with 'status'
-    relevantDetails?: string;
-    sponsorshipDetails?: string[];
-    sponsorshipDetailsRows?: { [key: string]: string | number | boolean }[];
-    submissionTimestamp: string; // Corresponds to 'created_at' from API
-    rejectionMessage?: string;
-    reviewMessage?: string;
-    clarificationMessage?: string;
-}
+// --- Interfaces (Keep BudgetItem, SponsorItem, MessageUser, Message, Proposal as before) ---
+interface BudgetItem { id: number; proposal_id: number; category: string; sub_category: string; type: 'Domestic' | 'International' | null; quantity: number; cost: number; amount: number; status: string; created_at: string; updated_at: string; }
+interface SponsorItem { id: number; proposal_id: number; category: string; amount: number; reward: string; mode: string; about: string; benefit: string; created_at: string; updated_at: string; }
+interface MessageUser { id: number; name: string; email: string; role: string; designation?: string; }
+interface Message { id: number; proposal_id: number; user_id: number; message: string; created_at: string; updated_at: string; user: MessageUser; }
+interface Proposal { id: string; title: string; description: string; category: string; status: string; eventStartDate: string; eventEndDate: string; submissionTimestamp: string; date: string; organizer: string; convenerName: string; convenerEmail?: string; convenerDesignation?: string; participantExpected?: number | null; participantCategories?: string[] | null; chiefGuestName?: string; chiefGuestDesignation?: string; chiefGuestAddress?: string; chiefGuestPhone?: string; chiefGuestPan?: string; chiefGuestReason?: string; hotelName?: string; hotelAddress?: string; hotelDuration?: number; hotelType?: 'srm' | 'others' | null; travelName?: string; travelAddress?: string; travelDuration?: number; travelType?: 'srm' | 'others' | null; estimatedBudget?: number; fundingDetails: { universityFund?: number; registrationFund?: number; sponsorshipFund?: number; otherSourcesFund?: number; }; detailedBudget: BudgetItem[]; sponsorshipDetailsRows: SponsorItem[]; pastEvents?: string | null; relevantDetails?: string | null; awaiting?: string | null; messages: Message[]; }
 
 
+// --- Popup Props ---
 interface PopupProps {
     selectedProposal: Proposal;
     closePopup: () => void;
-    onProposalUpdated: () => void
+    onProposalUpdated?: () => void;
 }
 
+// --- Helper Components (DetailItem) ---
+const DetailItem: React.FC<{ label: string; value?: string | number | null; children?: React.ReactNode; className?: string }> = ({ label, value, children, className = '' }) => {
+    // ... (keep existing implementation)
+    if (!children && (value === null || value === undefined || value === '')) { return null; }
+    return (<div className={className}> <p className="text-sm font-semibold text-gray-700">{label}:</p> {children ? <div className="text-sm text-gray-600 mt-0.5">{children}</div> : <p className="text-sm text-gray-600 whitespace-pre-wrap">{value}</p>} </div>);
+};
+
+// --- Main Popup Component ---
 const Popup: React.FC<PopupProps> = ({ selectedProposal, closePopup, onProposalUpdated }) => {
-    const [rejectionInput, setRejectionInput] = useState('');
-    const [reviewInput, setReviewInput] = useState('');
-    const [isRejecting, setIsRejecting] = useState(false);
-    const [isReviewing, setIsReviewing] = useState(false);
+    // State and Router setup (keep as before)
     const [isLoading, setIsLoading] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
+    const router = useRouter();
 
-    // Ensure your API Base URL is correctly configured, maybe use environment variables
-    const API_BASE_URL = 'http://pmspreview-htfbhkdnffcpf5dz.centralindia-01.azurewebsites.net';
-
-    // Determine the correct endpoint prefix based on user role if needed here,
-    // though the parent component seems to handle fetching.
-    // For actions (PUT requests), ensure the role is considered if the API requires it.
-    // Example (you might need to pass the user role down or fetch it):
-    // const apiEndpoint = `${API_BASE_URL}/api/${userRole}/proposals/${selectedProposal.id}`;
-
-    const handleRejectClick = () => {
-        setIsRejecting(true);
-        setIsReviewing(false);
-    };
-
-    const handleReviewClick = () => {
-        setIsReviewing(true);
-        setIsRejecting(false);
-    };
-
-    const cancelRejectReview = () => {
-        setIsRejecting(false);
-        setIsReviewing(false);
-        setRejectionInput('');
-        setReviewInput('');
-        setErrorMessage(null);
-    };
-
-    const handleAccept = async () => {
-        // You might need the user's role to determine the correct API endpoint
-        // For simplicity, assuming the parent passes a correct base API URL or it's fixed
-        const acceptEndpoint = `${API_BASE_URL}/api/faculty/proposals/${selectedProposal.id}`; // Adjust '/faculty/' if needed based on role
-
-        try {
-            setIsLoading(true);
-            setErrorMessage(null);
-            await axios.put(acceptEndpoint, { status: 'Approved' }); // Consider sending the correct token if needed
-            onProposalUpdated(); // Notify parent component
-            closePopup();
-        } catch (error: any) {
-             console.error("Accept error:", error);
-            setErrorMessage(error.response?.data?.message || error.message || 'Failed to accept proposal');
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const handleReject = async () => {
-        const rejectEndpoint = `${API_BASE_URL}/api/faculty/proposals/${selectedProposal.id}`; // Adjust '/faculty/' if needed based on role
-
-        try {
-            // Optional: More user-friendly confirmation
-            // if (!window.confirm('Are you sure you want to reject this proposal?')) {
-            //     return;
-            // }
-            setIsLoading(true);
-            setErrorMessage(null);
-            await axios.put(rejectEndpoint, {
-                status: 'Rejected',
-                rejectionMessage: rejectionInput, // Ensure API accepts this field name
-                // Alternatively, the API might expect messages via a separate endpoint or field
-                // cheif_reason: rejectionInput, // If API uses this field name
-            });
-            onProposalUpdated(); // Notify parent component
-            closePopup();
-        } catch (error: any) {
-             console.error("Reject error:", error);
-            setErrorMessage(error.response?.data?.message || error.message || 'Failed to reject proposal');
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const handleReview = async () => {
-        const reviewEndpoint = `${API_BASE_URL}/api/faculty/proposals/${selectedProposal.id}`; // Adjust '/faculty/' if needed based on role
-
-        try {
-            // Optional: More user-friendly confirmation
-            // if (!window.confirm('Are you sure you want to submit a review for this proposal?')) {
-            //     return;
-            // }
-            setIsLoading(true);
-            setErrorMessage(null);
-            await axios.put(reviewEndpoint, {
-                status: 'Review',
-                reviewMessage: reviewInput, // Ensure API accepts this field name
-                 // Alternatively:
-                 // cheif_reason: reviewInput, // If API uses this field name for review/rejection comments
-            });
-            onProposalUpdated(); // Notify parent component
-            closePopup();
-        } catch (error: any) {
-             console.error("Review error:", error);
-            setErrorMessage(error.response?.data?.message || error.message || 'Failed to submit review');
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    // Helper function for safe date formatting
+    // --- Helper Functions (Keep as before) ---
     const formatDateSafe = (dateString: string | null | undefined, formatString: string = 'dd-MM-yyyy hh:mm a'): string => {
         if (!dateString) return 'N/A';
-        try {
-            const dateObj = new Date(dateString);
-            if (isValid(dateObj)) {
-                return format(dateObj, formatString);
-            }
-        } catch (e) {
-            // Log error if needed: console.error("Date parsing error:", e);
-        }
-        return 'Invalid Date'; // Indicate if parsing failed
+        try { const dateObj = new Date(dateString); if (isValid(dateObj)) { return format(dateObj, formatString); } } catch (e) { /* ignore */ }
+        return 'Invalid Date';
+    };
+    const calculateDuration = () => {
+        try { const start = new Date(selectedProposal.eventStartDate); const end = new Date(selectedProposal.eventEndDate); if (isValid(start) && isValid(end) && end >= start) { const days = differenceInCalendarDays(end, start) + 1; return `${days} day${days !== 1 ? 's' : ''}`; } } catch (e) { /* ignore */ }
+        return 'N/A';
+    };
+    const eventDuration = calculateDuration();
+    const formatCurrency = (value: number | null | undefined) => {
+        if (value === null || value === undefined) return 'N/A';
+        return value.toLocaleString('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0, maximumFractionDigits: 0 });
     };
 
+    // --- Format Role Function ---
+    const formatRole = (role: string | null | undefined): string => {
+        if (!role) return 'N/A';
+        return role.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    };
+
+    // --- JSX ---
     return (
         <motion.div
-            className="fixed inset-0 z-50 shadow-md shadow-blue-200 flex items-center justify-center bg-opacity-75" // Darker overlay
+            className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-opacity-60 p-4"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
         >
-            {/* Apply theme colors here */}
             <motion.div
-                className="bg-white rounded-lg border-t-4 border-blue-800 shadow-lg w-full max-w-3xl mx-4 max-h-[90vh] flex flex-col" // White background, blue border top
-                initial={{ y: -50, opacity: 0 }}
+                className="bg-white rounded-lg border-t-4 border-blue-700 shadow-xl w-full max-w-5xl mx-auto max-h-[90vh] flex flex-col"
+                initial={{ y: -30, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
-                exit={{ y: 50, opacity: 0 }}
+                exit={{ y: 30, opacity: 0 }}
                 transition={{ duration: 0.3, type: "spring", stiffness: 120 }}
             >
                 {/* Header */}
-                <div className="flex justify-between items-center p-4 md:p-6 border-b border-gray-200">
-                    <h2 className="text-xl font-bold text-blue-900">Proposal Details</h2> {/* Blue header text */}
-                    <button onClick={closePopup} className="text-gray-500 hover:text-red-600" aria-label="Close pop-up">
+                <div className="flex justify-between items-center p-4 border-b border-gray-200 sticky top-0 bg-white z-10">
+                    <h2 className="text-xl font-bold text-blue-900">{selectedProposal.title || 'Proposal Details'}</h2>
+                    <button onClick={closePopup} className="text-gray-500 hover:text-red-600 transition-colors" aria-label="Close pop-up">
                         <X className="h-6 w-6" />
                     </button>
                 </div>
 
                 {/* Scrollable Content Area */}
-                <div className="p-4 md:p-6 space-y-4 overflow-y-auto flex-grow">
-                     {/* Use text-gray-700/800 for labels and text-gray-600/700 for values */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
-                        <div>
-                            <p className="text-gray-700 font-semibold">ID:</p>
-                            <p className="text-gray-600">{selectedProposal.id || 'N/A'}</p>
+                <div className="p-5 md:p-6 space-y-6 overflow-y-auto flex-grow">
+                    {/* --- Core Event Details --- */}
+                    <section className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                        <h3 className="text-lg font-semibold text-blue-800 mb-3 flex items-center gap-2"><Info size={18} /> Event Information</h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-3">
+                            {/* Details Items... */}
+                            <DetailItem label="Proposal ID" value={selectedProposal.id} />
+                            <DetailItem label="Category" value={selectedProposal.category?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'N/A'} />
+                            <DetailItem label="Status" >
+                                <span className={`font-medium px-2 py-0.5 rounded-full text-xs ${selectedProposal.status === 'approved' ? 'bg-green-100 text-green-700' :
+                                        selectedProposal.status === 'completed' ? 'bg-purple-100 text-purple-700' :
+                                            selectedProposal.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                                                selectedProposal.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                                                    selectedProposal.status === 'review' ? 'bg-blue-100 text-blue-700' :
+                                                        'bg-gray-100 text-gray-700'
+                                    }`}>
+                                    {formatRole(selectedProposal.status)}
+                                </span>
+                            </DetailItem>
+                            <DetailItem label="Awaiting Approval From" value={formatRole(selectedProposal.awaiting) || (selectedProposal.status !== 'pending' && selectedProposal.status !== 'review' ? '-' : 'N/A')} />
+                            <DetailItem label="Event Start Date" value={formatDateSafe(selectedProposal.eventStartDate, 'dd-MM-yyyy')} />
+                            <DetailItem label="Event End Date" value={formatDateSafe(selectedProposal.eventEndDate, 'dd-MM-yyyy')} />
+                            <DetailItem label="Duration" value={eventDuration} />
+                            <DetailItem label="Submitted On" value={formatDateSafe(selectedProposal.submissionTimestamp)} />
+                            <div className="sm:col-span-2 md:col-span-3"> <DetailItem label="Description" value={selectedProposal.description || 'N/A'} /> </div>
+                            <div className="sm:col-span-2 md:col-span-3"> <DetailItem label="Past Relevant Events" value={selectedProposal.pastEvents || 'N/A'} /> </div>
+                            <div className="sm:col-span-2 md:col-span-3"> <DetailItem label="Other Relevant Details" value={selectedProposal.relevantDetails || 'N/A'} /> </div>
                         </div>
-                        <div>
-                            <p className="text-gray-700 font-semibold">Title:</p>
-                            <p className="text-gray-600">{selectedProposal.title || 'N/A'}</p>
+                    </section>
+
+
+                    <section className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                        <h3 className="text-lg font-semibold text-blue-800 mb-3 flex items-center gap-2"><Users size={18} /> Organizer & Participants</h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-3">
+
+                            <DetailItem label="Organizing Dept." value={selectedProposal.organizer} />
+                            <DetailItem label="Convener Name" value={selectedProposal.convenerName} />
+                            <DetailItem label="Convener Email" value={selectedProposal.convenerEmail} />
+                            <DetailItem label="Convener Designation" value={selectedProposal.convenerDesignation || 'N/A'} />
+                            <DetailItem label="Expected Participants" value={selectedProposal.participantExpected ?? 'N/A'} />
+                            <DetailItem label="Participant Categories" className="md:col-span-2">
+                                {selectedProposal.participantCategories && selectedProposal.participantCategories.length > 0 ? (
+                                    <div className="flex flex-wrap gap-1 mt-1"> {selectedProposal.participantCategories.map((cat, index) => (<span key={index} className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{cat}</span>))} </div>
+                                ) : <p className="text-sm text-gray-600">N/A</p>}
+                            </DetailItem>
                         </div>
-                        <div>
-                            <p className="text-gray-700 font-semibold">Organizer / Department:</p>
-                            <p className="text-gray-600">{selectedProposal.organizer || selectedProposal.organizingDepartment || 'N/A'}</p>
-                        </div>
-                        <div>
-                            <p className="text-gray-700 font-semibold">Category:</p>
-                            <p className="text-gray-600">{selectedProposal.category || 'N/A'}</p>
-                        </div>
-                        <div>
-                            <p className="text-gray-700 font-semibold">Convener:</p>
-                            <p className="text-gray-600">{selectedProposal.convenerName || 'N/A'} ({selectedProposal.convenerEmail || 'N/A'})</p>
-                        </div>
-                         {selectedProposal.designation && (
-                            <div>
-                                <p className="text-gray-700 font-semibold">Convener Designation:</p>
-                                <p className="text-gray-600">{selectedProposal.designation}</p>
+                    </section>
+
+                    {/* --- Chief Guest Details --- */}
+                    {selectedProposal.chiefGuestName && (
+                        <section className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+
+                            <h3 className="text-lg font-semibold text-blue-800 mb-3 flex items-center gap-2"><UserCheck size={18} /> Chief Guest</h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-3">
+                                <DetailItem label="Name" value={selectedProposal.chiefGuestName} /> <DetailItem label="Designation" value={selectedProposal.chiefGuestDesignation} /> <DetailItem label="Phone" value={selectedProposal.chiefGuestPhone} />
+                                <DetailItem label="PAN" value={selectedProposal.chiefGuestPan} /> <DetailItem label="Address" value={selectedProposal.chiefGuestAddress} className="md:col-span-2" /> <DetailItem label="Reason for Inviting" value={selectedProposal.chiefGuestReason || 'N/A'} className="md:col-span-3" />
                             </div>
-                         )}
-                        <div>
-                            <p className="text-gray-700 font-semibold">Status:</p>
-                            <p className={`font-medium ${selectedProposal.status === 'Approved' ? 'text-green-600' : selectedProposal.status === 'Pending' ? 'text-yellow-600' : selectedProposal.status === 'Rejected' ? 'text-red-600' : selectedProposal.status === 'Review' ? 'text-blue-600' : 'text-gray-600'}`}>
-                                {selectedProposal.status || 'N/A'}
-                            </p>
-                        </div>
-                        <div>
-                            <p className="text-gray-700 font-semibold">Event Start Date:</p>
-                            {/* Use the helper function for safe formatting */}
-                            <p className="text-gray-600">{formatDateSafe(selectedProposal.eventStartDate)}</p>
-                        </div>
-                        <div>
-                            <p className="text-gray-700 font-semibold">Event End Date:</p>
-                            <p className="text-gray-600">{formatDateSafe(selectedProposal.eventEndDate)}</p>
-                        </div>
-                         {selectedProposal.durationEvent && (
-                            <div>
-                                <p className="text-gray-700 font-semibold">Duration:</p>
-                                <p className="text-gray-600">{selectedProposal.durationEvent}</p>
-                            </div>
-                         )}
-                         {selectedProposal.location && (
-                             <div>
-                                 <p className="text-gray-700 font-semibold">Location:</p>
-                                 <p className="text-gray-600">{selectedProposal.location}</p>
-                             </div>
-                         )}
-                        {/* Display calculated or estimated cost */}
-                         <div>
-                            <p className="text-gray-700 font-semibold">Estimated Budget / Cost:</p>
-                            <p className="text-gray-600">
-                                {selectedProposal.cost?.toLocaleString('en-IN', { style: 'currency', currency: 'INR' }) ?? // Prefer specific cost if available
-                                 selectedProposal.estimatedBudget?.toLocaleString('en-IN', { style: 'currency', currency: 'INR' }) ?? // Fallback to estimated
-                                 'N/A'}
-                            </p>
-                         </div>
-
-                        {/* Chief Guest */}
-                         {selectedProposal.chiefGuestName && (
-                             <div>
-                                 <p className="text-gray-700 font-semibold">Chief Guest:</p>
-                                 <p className="text-gray-600">{selectedProposal.chiefGuestName} ({selectedProposal.chiefGuestDesignation || 'N/A'})</p>
-                             </div>
-                         )}
-
-                        {/* Description (spans both columns on small screens) */}
-                        <div className="sm:col-span-2">
-                            <p className="text-gray-700 font-semibold">Description:</p>
-                            <p className="text-gray-600 whitespace-pre-wrap">{selectedProposal.description || 'N/A'}</p>
-                        </div>
-                    </div>
-
-                    {/* --- Additional Sections (Conditionally Rendered) --- */}
-
-                    {/* Past Events */}
-                    {(selectedProposal.pastEvents && selectedProposal.pastEvents.length > 0) && (
-                         <div className="mt-4 p-3 bg-blue-50 rounded-md border border-blue-200">
-                             <p className="text-blue-800 font-semibold">Past Events:</p>
-                             {Array.isArray(selectedProposal.pastEvents) ? (
-                                <ul className="text-gray-600 list-disc list-inside pl-2">
-                                    {selectedProposal.pastEvents.map((event, index) => <li key={index}>{event}</li>)}
-                                </ul>
-                             ) : (
-                                <p className="text-gray-600 whitespace-pre-wrap">{selectedProposal.pastEvents}</p>
-                             )}
-                         </div>
-                     )}
-
-                    {/* Relevant Details */}
-                     {selectedProposal.relevantDetails && (
-                         <div className="mt-4 p-3 bg-blue-50 rounded-md border border-blue-200">
-                             <p className="text-blue-800 font-semibold">Relevant Details:</p>
-                             <p className="text-gray-600 whitespace-pre-wrap">{selectedProposal.relevantDetails}</p>
-                         </div>
-                     )}
-
-                    {/* Sponsorship Details */}
-                    {(selectedProposal.sponsorshipDetails && selectedProposal.sponsorshipDetails.length > 0) && (
-                        <div className="mt-4 p-3 bg-blue-50 rounded-md border border-blue-200">
-                            <p className="text-blue-800 font-semibold">Sponsorship Details:</p>
-                            <ul className="text-gray-600 list-disc list-inside pl-2">
-                                {selectedProposal.sponsorshipDetails.map((sponsor, index) => (
-                                    <li key={index}>{sponsor}</li>
-                                ))}
-                            </ul>
-                        </div>
+                            {(selectedProposal.hotelName || selectedProposal.travelName) && (
+                                <div className="mt-4 pt-3 border-t border-gray-200">
+                                    <h4 className="text-md font-medium text-gray-700 mb-2">Accommodation & Travel</h4>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+                                        <div> <p className="text-sm font-semibold text-gray-700 flex items-center gap-1 mb-1"><BedDouble size={16} /> Accommodation</p> <DetailItem label="Hotel" value={`${selectedProposal.hotelName || 'N/A'} (${selectedProposal.hotelType || 'N/A'})`} /> <DetailItem label="Hotel Address" value={selectedProposal.hotelAddress || 'N/A'} /> <DetailItem label="Stay Duration" value={selectedProposal.hotelDuration ? `${selectedProposal.hotelDuration} day(s)` : 'N/A'} /> </div>
+                                        <div> <p className="text-sm font-semibold text-gray-700 flex items-center gap-1 mb-1"><Car size={16} /> Travel</p> <DetailItem label="Mode" value={`${selectedProposal.travelName || 'N/A'} (${selectedProposal.travelType || 'N/A'})`} /> <DetailItem label="From/To" value={selectedProposal.travelAddress || 'N/A'} /> <DetailItem label="Travel Duration/Trips" value={selectedProposal.travelDuration ? `${selectedProposal.travelDuration} day(s)/trip(s)` : 'N/A'} /> </div>
+                                    </div>
+                                </div>
+                            )}
+                        </section>
                     )}
 
-                    {/* Sponsorship Rows (Example display) */}
-                    {(selectedProposal.sponsorshipDetailsRows && selectedProposal.sponsorshipDetailsRows.length > 0) && (
-                        <div className="mt-4 p-3 bg-blue-50 rounded-md border border-blue-200">
-                            <p className="text-blue-800 font-semibold">Sponsorship Rows:</p>
-                            {/* Consider formatting this better, e.g., a table */}
-                            <pre className="text-xs text-gray-600 bg-gray-100 p-2 rounded overflow-x-auto">
-                                {JSON.stringify(selectedProposal.sponsorshipDetailsRows, null, 2)}
-                            </pre>
-                        </div>
+                    {/* --- Financial Details --- */}
+                    <section className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+
+                        <h3 className="text-lg font-semibold text-blue-800 mb-3 flex items-center gap-2"><DollarSign size={18} /> Financial Overview</h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3 mb-4"> <DetailItem label="Est. Total Budget" value={formatCurrency(selectedProposal.estimatedBudget)} /> <DetailItem label="University Fund" value={formatCurrency(selectedProposal.fundingDetails?.universityFund)} /> <DetailItem label="Registration Fund" value={formatCurrency(selectedProposal.fundingDetails?.registrationFund)} /> <DetailItem label="Sponsorship Fund" value={formatCurrency(selectedProposal.fundingDetails?.sponsorshipFund)} /> <DetailItem label="Other Fund" value={formatCurrency(selectedProposal.fundingDetails?.otherSourcesFund)} /> </div>
+                        {(selectedProposal.detailedBudget && selectedProposal.detailedBudget.length > 0) && (
+                            <div className="mt-4 pt-3 border-t border-gray-200"> <h4 className="text-md font-medium text-gray-700 mb-2 flex items-center gap-1"><FileText size={16} /> Detailed Budget Items</h4> <div className="overflow-x-auto max-h-60 border rounded-md"> <table className="table table-sm w-full text-xs">
+                                <thead className="sticky top-0 bg-gray-100 z-10"> <tr>
+                                    <th className="p-2">Category</th>
+
+                                    <th className="p-2">Subcategory</th>
+                                    <th className="p-2">Type</th>
+                                    <th className="p-2 text-center">Status</th>
+                                    <th className='p-2 text-right'>Qty</th>
+                                    <th className='p-2 text-right'>Cost/Unit</th>
+                                    <th className='p-2 text-right'>Total</th>
+                                </tr> </thead>
+                                <tbody> {selectedProposal.detailedBudget.map((item, index) => (<tr key={item.id || index} className="hover:bg-gray-50 border-b last:border-b-0 border-gray-200">
+                                    <td className="p-2">{item.category}</td>
+                                    <td className="p-2">{item.sub_category}</td> <td className="p-2">{item.type || '-'}</td>
+                                    <td className='p-2 text-center'> <span className={`font-medium px-1.5 py-0.5 rounded-full text-[10px] ${item.status === 'actual' ? 'bg-cyan-100 text-cyan-700' : 'bg-orange-100 text-orange-700'}`}> {item.status || 'N/A'} </span> </td>
+                                    <td className='p-2 text-right'>{item.quantity}</td> <td className='p-2 text-right'>{formatCurrency(item.cost)}</td>
+                                    <td className='p-2 text-right font-medium'>{formatCurrency(item.amount)}</td> </tr>))}
+                                </tbody> <tfoot className='sticky bottom-0'>
+                                    <tr className='font-bold bg-gray-100'>
+                                        <td colSpan={6} className='p-2 text-right'>Total:</td>
+                                        <td className='p-2 text-right'>{formatCurrency(selectedProposal.estimatedBudget)}</td>
+                                    </tr> </tfoot>
+                            </table>
+                            </div>
+                            </div>
+                        )}
+                        {(selectedProposal.sponsorshipDetailsRows && selectedProposal.sponsorshipDetailsRows.length > 0) && (
+                            <div className="mt-4 pt-3 border-t border-gray-200"> <h4 className="text-md font-medium text-gray-700 mb-2 flex items-center gap-1"><Award size={16} /> Sponsorship Details</h4> <div className="overflow-x-auto max-h-60 border rounded-md"> <table className="table table-sm w-full text-xs"> <thead className="sticky top-0 bg-gray-100 z-10"> <tr> <th className='p-2'>Sponsor/Category</th> <th className='p-2'>Mode</th> <th className='p-2 text-right'>Amount</th> <th className='p-2'>Reward</th> <th className='p-2'>Benefit</th> <th className='p-2'>About</th> </tr> </thead> <tbody> {selectedProposal.sponsorshipDetailsRows.map((sponsor, index) => (<tr key={sponsor.id || index} className="hover:bg-gray-50 border-b last:border-b-0 border-gray-200"> <td className='p-2'>{sponsor.category}</td> <td className='p-2'>{sponsor.mode}</td> <td className='p-2 text-right'>{formatCurrency(sponsor.amount)}</td> <td className='p-2'>{sponsor.reward}</td> <td className='p-2'>{sponsor.benefit}</td> <td className="p-2 max-w-[150px] truncate" title={sponsor.about}>{sponsor.about}</td> </tr>))} </tbody> </table> </div> </div>
+                        )}
+                    </section>
+
+                    {/* --- Communication Log --- */}
+
+                    {(selectedProposal.messages && selectedProposal.messages.length > 0) && (
+                        <section className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                            <h3 className="text-lg font-semibold text-blue-800 mb-4 flex items-center gap-2">
+                                <MessageSquare size={18} /> Communication Log
+                            </h3>
+                            <div className="space-y-3 max-h-72 overflow-y-auto pr-2 custom-scrollbar"> {/* Added custom-scrollbar class if needed */}
+                                {selectedProposal.messages
+                                    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+                                    .map((msg) => (
+                                        <div key={msg.id} className="p-3 border-l-4 border-blue-300 rounded-r-md bg-white shadow-sm"> {/* Left border highlight */}
+                                            {/* Message content */}
+                                            <p className="text-sm text-gray-800 mb-2 whitespace-pre-wrap">{msg.message}</p>
+                                            {/* Sender and Timestamp Row */}
+                                            <div className="flex justify-between items-center text-xs text-gray-500 border-t border-gray-100 pt-1.5 mt-1.5"> {/* Separator line */}
+                                                <span>
+                                                    By: <span className='font-medium text-gray-700'>{msg.user?.name || 'Unknown User'}</span>
+                                                    <span className='italic ml-1'>({formatRole(msg.user?.role)})</span>
+                                                </span>
+                                                <span title={formatDateSafe(msg.created_at, 'PPpp')}> {/* Full date+time on hover */}
+                                                    {formatDateSafe(msg.created_at, 'dd-MM-yy hh:mm a')} {/* Shorter format */}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    ))}
+                            </div>
+                        </section>
                     )}
-
-                     {/* Detailed Budget */}
-                     {(selectedProposal.detailedBudget && selectedProposal.detailedBudget.length > 0) && (
-                         <div className="mt-4 p-3 bg-blue-50 rounded-md border border-blue-200">
-                             <p className="text-blue-800 font-semibold">Detailed Budget:</p>
-                             <ul className="list-disc list-inside text-gray-600 pl-2">
-                                 {selectedProposal.detailedBudget.map((item, index) => (
-                                     <li key={index}>
-                                         {item.mainCategory || 'N/A'} - {item.subCategory || 'N/A'}
-                                         {item.totalAmount != null ? ` (${item.totalAmount.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })})` : ' (N/A)'}
-                                     </li>
-                                 ))}
-                             </ul>
-                         </div>
-                     )}
-
-                     {/* Funding Details */}
-                     {selectedProposal.fundingDetails && (
-                        <div className="mt-4 p-3 bg-blue-50 rounded-md border border-blue-200">
-                             <p className="text-blue-800 font-semibold">Funding Details:</p>
-                             <ul className="list-disc list-inside text-gray-600 pl-2">
-                                 {selectedProposal.fundingDetails.registrationFund != null && <li>Registration: {selectedProposal.fundingDetails.registrationFund.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}</li>}
-                                 {selectedProposal.fundingDetails.sponsorshipFund != null && <li>Sponsorship: {selectedProposal.fundingDetails.sponsorshipFund.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}</li>}
-                                 {selectedProposal.fundingDetails.universityFund != null && <li>University: {selectedProposal.fundingDetails.universityFund.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}</li>}
-                                 {selectedProposal.fundingDetails.otherSourcesFund != null && <li>Other: {selectedProposal.fundingDetails.otherSourcesFund.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}</li>}
-                             </ul>
-                             {/* Check if *any* funding detail exists */}
-                             {Object.values(selectedProposal.fundingDetails).every(val => val == null) && (
-                                 <p className="text-gray-500 italic">No funding details provided.</p>
-                             )}
-                         </div>
-                     )}
-
-                    {/* Submission Timestamp */}
-                     {selectedProposal.submissionTimestamp && (
-                         <div className="mt-4 text-sm text-gray-500">
-                             Submitted On: {formatDateSafe(selectedProposal.submissionTimestamp)}
-                         </div>
-                     )}
-
-                    {/* Messages */}
-                     {selectedProposal.rejectionMessage && (
-                         <div className="mt-4 p-3 bg-red-50 text-red-700 rounded-md border border-red-200">
-                             <p className="font-semibold">Rejection Reason:</p>
-                             <p className="whitespace-pre-wrap">{selectedProposal.rejectionMessage}</p>
-                         </div>
-                     )}
-                     {selectedProposal.reviewMessage && (
-                         <div className="mt-4 p-3 bg-yellow-50 text-yellow-700 rounded-md border border-yellow-200">
-                             <p className="font-semibold">Review Comments:</p>
-                             <p className="whitespace-pre-wrap">{selectedProposal.reviewMessage}</p>
-                         </div>
-                     )}
-                     {/* Add clarificationMessage if needed */}
-                     {selectedProposal.clarificationMessage && (
-                         <div className="mt-4 p-3 bg-blue-50 text-blue-700 rounded-md border border-blue-200">
-                             <p className="font-semibold">Clarification Request:</p>
-                             <p className="whitespace-pre-wrap">{selectedProposal.clarificationMessage}</p>
-                         </div>
-                     )}
-
                 </div>
 
                 {/* Footer / Actions Area */}
-                <div className="p-4 md:p-6 border-t border-gray-200 bg-gray-50 rounded-b-lg">
-                    {errorMessage && (
-                        <div className="text-red-600 text-sm mb-3 p-2 bg-red-100 border border-red-300 rounded">{errorMessage}</div>
-                    )}
-
-                    {/* Action Buttons (Only if Pending) */}
-                    {selectedProposal.status === 'Pending' && !isRejecting && !isReviewing && (
-                        <div className="flex flex-wrap gap-3 justify-end">
-                            <button
-                                onClick={handleAccept}
-                                className="px-5 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md transition duration-200 shadow-sm disabled:opacity-50"
-                                disabled={isLoading}
-                            >
-                                {isLoading ? 'Accepting...' : 'Accept'}
-                            </button>
-                            <button
-                                onClick={handleReviewClick}
-                                className="px-5 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-md transition duration-200 shadow-sm disabled:opacity-50"
-                                disabled={isLoading}
-                            >
-                                Request Review/Clarification
-                            </button>
-                            <button
-                                onClick={handleRejectClick}
-                                className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md transition duration-200 shadow-sm disabled:opacity-50"
-                                disabled={isLoading}
-                            >
-                                Reject
-                            </button>
+                <div className="p-4 border-t border-gray-200 bg-gray-50 rounded-b-lg sticky bottom-0 z-10">
+                    {errorMessage && (<div className="text-red-600 text-sm mb-3 p-2 bg-red-100 border border-red-300 rounded flex items-center gap-2"> <AlertCircle size={16} /> {errorMessage} </div>)}
+                    {selectedProposal.awaiting?.toLowerCase() === 'hod' && !['completed', 'rejected'].includes(selectedProposal.status) && (
+                        <div className="flex justify-end">
+                            <button onClick={() => router.push(`/proposal/edit?proposalId=${selectedProposal.id}`)} className="btn btn-info btn-sm text-white flex items-center gap-1" disabled={isLoading}> <Edit size={14} /> Edit Proposal </button>
                         </div>
-                    )}
-
-                    {/* Rejection Input Area */}
-                    {isRejecting && (
-                        <div className="mt-4 space-y-3">
-                            <label htmlFor="rejectionMessage" className="block text-sm font-semibold text-gray-700">Reason for Rejection:</label>
-                            <textarea
-                                id="rejectionMessage"
-                                rows={3}
-                                className="mt-1 p-2 block w-full rounded-md border border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 sm:text-sm bg-white text-black" // Ensure text is visible
-                                placeholder="Enter rejection reason here..."
-                                value={rejectionInput}
-                                onChange={(e) => setRejectionInput(e.target.value)}
-                                disabled={isLoading}
-                                required // Make sure a reason is provided
-                            />
-                            <div className="flex gap-3 justify-end">
-                                <button
-                                    onClick={cancelRejectReview}
-                                    className="px-4 py-2 text-gray-700 bg-gray-200 hover:bg-gray-300 rounded-md transition duration-200 disabled:opacity-50"
-                                    disabled={isLoading}
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={handleReject}
-                                    className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md transition duration-200 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                                    disabled={isLoading || !rejectionInput.trim()} // Disable if no input or loading
-                                >
-                                    {isLoading ? 'Rejecting...' : 'Confirm Reject'}
-                                </button>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Review Input Area */}
-                    {isReviewing && (
-                         <div className="mt-4 space-y-3">
-                            <label htmlFor="reviewMessage" className="block text-sm font-semibold text-gray-700">Comments for Review / Clarification Request:</label>
-                            <textarea
-                                id="reviewMessage"
-                                rows={3}
-                                className="mt-1 p-2 block w-full rounded-md border border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 sm:text-sm bg-white text-black" // Ensure text is visible
-                                placeholder="Enter review comments or clarification questions here..."
-                                value={reviewInput}
-                                onChange={(e) => setReviewInput(e.target.value)}
-                                disabled={isLoading}
-                                required // Make sure comments are provided
-                            />
-                            <div className="flex gap-3 justify-end">
-                                <button
-                                    onClick={cancelRejectReview}
-                                    className="px-4 py-2 text-gray-700 bg-gray-200 hover:bg-gray-300 rounded-md transition duration-200 disabled:opacity-50"
-                                    disabled={isLoading}
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={handleReview}
-                                     // Corrected class name - assuming you use Tailwind JIT or have baffle-yellow-500 defined elsewhere
-                                     // If not, use standard Tailwind: bg-yellow-500
-                                    className="px-5 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-md transition duration-200 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                                    disabled={isLoading || !reviewInput.trim()} // Disable if no input or loading
-                                >
-                                    {isLoading ? 'Submitting...' : 'Submit for Review'}
-                                </button>
-                            </div>
-                         </div>
                     )}
                 </div>
             </motion.div>

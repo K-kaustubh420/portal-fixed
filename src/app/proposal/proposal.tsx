@@ -28,7 +28,7 @@ interface SponsorshipRow {
 }
 
 // --- Enums / Constants ---
-const HOTEL_TYPES = ['srm', 'others'] as const;
+const HOTEL_TYPES: ('srm' | 'others')[] = ['srm', 'others'];
 const TRAVEL_TYPES = ['srm', 'others'] as const;
 const EVENT_CATEGORIES = [
     "conference_national", "conference_international", "fdp", "workshop",

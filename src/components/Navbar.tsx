@@ -1,5 +1,4 @@
 "use client";
-
 import { RxCross2 } from 'react-icons/rx';
 import { useState } from 'react';
 import Image from 'next/image';
@@ -73,7 +72,7 @@ const Navbar = () => {
                 console.error("Navbar Login: /api/login call failed:", errorMessage, data);
                 setLoginError(errorMessage);
             }
-        } catch (error: any) {
+        } catch (error) {
             console.error("Navbar Login: Error during sign-in process:", error);
             if (error instanceof TypeError && error.message.includes('fetch')) {
                  setLoginError("Network error: Could not connect to the server.");

@@ -33,7 +33,9 @@ const Page = () => {
 
   if (isLoading) {
     // Optional: Show a loading indicator while fetching data
-    DashboardComponent = <div>Loading user data...</div>;
+    DashboardComponent = <div className="flex justify-center items-center h-screen bg-white text-gray-300">
+      <span className="loading loading-bars loading-xl"></span>
+    </div>;
   } else if (user) {
     // Get the role from the user state object
     const role = user.role;

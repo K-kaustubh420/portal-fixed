@@ -1,151 +1,205 @@
+// CalendarView.tsx
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react'; // Keep useEffect if needed elsewhere, but not for mirroring props
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import listPlugin from '@fullcalendar/list';
 import { EventInput } from '@fullcalendar/core';
-import Popup from './popup';
+import Popup from './popup'; // Assuming Popup component is correctly imported
 
+// --- Loading and Empty State Components (No Change) ---
 const LoadingComponent = () => (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100">
-        <div className="text-gray-500 animate-spin">
-            <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-            </svg>
+    <div className="flex items-center justify-center min-h-[50vh] bg-gray-50 rounded-lg"> {/* Adjusted height and bg */}
+        <div className="text-gray-500 flex flex-col items-center">
+            <span className="loading loading-spinner loading-lg text-blue-500"></span>
+            <p className="mt-2 text-sm">Loading Calendar...</p>
         </div>
     </div>
 );
 
 const NoProposalsComponent = () => (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100">
+    <div className="flex items-center justify-center min-h-[50vh] bg-gray-50 rounded-lg p-4"> {/* Adjusted height and bg */}
         <div className="text-gray-500 text-center">
-            <p className="text-lg">No approved proposals to display.</p>
+            <p className="text-lg">No proposals to display on the calendar.</p>
+            {/* Optional: Add an icon or further guidance */}
         </div>
     </div>
 );
 
-interface Proposal {
-    id: string;
+// --- Interface for Props expected by CalendarView ---
+// This should match the structure mapped in ConvenerDashboard
+interface CalendarProposal {
+    id: string; // Or number if preferred, ensure consistency
     title: string;
+    // Use the correct date fields passed from the parent
+    eventStartDate: string; // Expecting 'YYYY-MM-DD' or 'YYYY-MM-DD HH:MM:SS'
+    eventEndDate: string;   // Expecting 'YYYY-MM-DD' or 'YYYY-MM-DD HH:MM:SS'
+    // Status should match the values passed from parent (likely lowercase)
+    status: 'pending' | 'approved' | 'rejected' | 'review' | 'completed' | string; // Use lowercase
+    // Include ALL fields needed by the Popup component when an event is clicked
+    // These might be redundant with PopupProposal but necessary here for handleEventClick
     organizer: string;
-    date: string;
-    status: string;
+    date: string; // Often redundant if eventStartDate is present, but keep if Popup needs it
     category: string;
-    cost: number;
-    email: string;
+    cost?: number; // Optional cost
+    email?: string;
     description: string;
     location?: string;
     convenerName: string;
-    convenerEmail: string;
+    convenerEmail?: string;
     chiefGuestName?: string;
     chiefGuestDesignation?: string;
-    designation: string;
-    detailedBudget: { mainCategory: string; subCategory: string; totalAmount?: number }[];
-    durationEvent: string;
-    estimatedBudget: number;
-    eventDate: string;
-    eventDescription: string;
-    eventEndDate: string;
-    eventStartDate: string;
-    eventTitle: string;
-    fundingDetails?: {
-        registrationFund?: number;
-        sponsorshipFund?: number;
-        universityFund?: number;
-        otherSourcesFund?: number;
-    };
-    organizingDepartment: string;
-    pastEvents?: string[];
-    proposalStatus: string;
-    relevantDetails?: string;
+    designation?: string; // Possibly redundant with chiefGuestDesignation
+    detailedBudget?: any[];
+    durationEvent?: string;
+    estimatedBudget?: number;
+    eventDate?: string; // Alias for eventStartDate
+    eventDescription?: string; // Alias for description
+    eventTitle?: string; // Alias for title
+    fundingDetails?: { /* ... */ };
+    organizingDepartment?: string;
+    pastEvents?: string | null; // Use string | null based on DetailedProposal
+    proposalStatus?: string; // Alias for status
+    relevantDetails?: string | null; // Use string | null based on DetailedProposal
     sponsorshipDetails?: string[];
-    sponsorshipDetailsRows?: { [key: string]: string | number | boolean }[];
+    sponsorshipDetailsRows?: any[];
     submissionTimestamp: string;
     rejectionMessage?: string;
     reviewMessage?: string;
     clarificationMessage?: string;
-    tags?: string[]; // Added tags property
+    awaiting?: string | null; // Include awaiting status
+    // Add participant details etc. if Popup needs them
+    participant_expected?: number | null;
+    participant_categories?: string[] | null;
+    items?: any[];
+    sponsors?: any[];
+    chief?: any; // Or the specific User type if needed by Popup
 }
 
 interface CalendarViewProps {
-    proposals: Proposal[];
+    // Expect an array of objects matching the CalendarProposal interface
+    proposals: CalendarProposal[];
 }
 
+// --- Calendar Component ---
 const CalendarView: React.FC<CalendarViewProps> = ({ proposals }) => {
-    const [eventProposals, setEventProposals] = useState<Proposal[]>(proposals);
-    const [loading] = useState(false);
-    const [selectedEvent, setSelectedEvent] = useState<Proposal | null>(null);
+    // State for the selected proposal to show in the popup
+    const [selectedEvent, setSelectedEvent] = useState<CalendarProposal | null>(null);
+    // Loading state is now handled by the parent component (ConvenerDashboard)
+    // const [loading] = useState(false); // Remove this state
 
-    React.useEffect(() => {
-        setEventProposals(proposals);
-    }, [proposals]);
+    // Map the incoming proposals prop to the FullCalendar event format
+    const calendarEvents: EventInput[] = proposals.map(proposal => {
+        let backgroundColor = '#6b7280'; // Default gray
+        let borderColor = '#4b5563';     // Darker gray border
 
-    const calendarEvents: EventInput[] = eventProposals.map(proposal => {
-        let backgroundColor = '#3b82f6';
-        if (proposal.tags?.includes('Done')) backgroundColor = '#22c55e';
-        if (proposal.tags?.includes('Review')) backgroundColor = '#eab308';
-        if (proposal.tags?.includes('Rejected')) backgroundColor = '#ef4444';
+        // Color coding based on the lowercase status field
+        switch (proposal.status) {
+            case 'approved':
+            case 'completed': // Treat completed as approved for color
+                backgroundColor = '#10b981'; // Emerald 600
+                borderColor = '#059669';     // Emerald 700
+                break;
+            case 'pending':
+                backgroundColor = '#f59e0b'; // Amber 500
+                borderColor = '#d97706';     // Amber 600
+                break;
+            case 'rejected':
+                backgroundColor = '#ef4444'; // Red 500
+                borderColor = '#dc2626';     // Red 600
+                break;
+            case 'review':
+                backgroundColor = '#3b82f6'; // Blue 500
+                borderColor = '#2563eb';     // Blue 600
+                break;
+        }
 
         return {
-            id: proposal.id,
+            id: String(proposal.id), // Ensure ID is a string for FullCalendar
             title: proposal.title,
-            start: proposal.date,
-            allDay: true,
-            extendedProps: proposal,
+            start: proposal.eventStartDate, // Use the correct start date field
+            end: proposal.eventEndDate,     // Use the correct end date field
+            // allDay is automatically determined by FullCalendar based on start/end format
+            extendedProps: proposal, // Store the *full* proposal object here
             backgroundColor: backgroundColor,
-            borderColor: backgroundColor,
-            textColor: 'white',
+            borderColor: borderColor,
+            textColor: 'white', // Use white text for better contrast on colored backgrounds
+            classNames: ['cursor-pointer', 'text-xs', 'p-0.5'] // Add styling classes
         };
     });
 
+    // Handle clicking on a calendar event
     const handleEventClick = (clickInfo: any) => {
-        setSelectedEvent(clickInfo.event.extendedProps as Proposal);
+        // Retrieve the full proposal object stored in extendedProps
+        const proposalData = clickInfo.event.extendedProps as CalendarProposal;
+        console.log("Calendar Event Clicked:", proposalData); // Debugging
+        setSelectedEvent(proposalData);
     };
 
+    // Close the popup
     const closePopup = () => {
         setSelectedEvent(null);
     };
 
-    if (loading) {
-        return <LoadingComponent />;
+    // Display loading or empty state handled by parent, but keep check here
+    if (!proposals) {
+        // This case might indicate an issue in the parent passing props
+        return <LoadingComponent />; // Or an error message
     }
 
-    if (eventProposals.length === 0) {
-        return <NoProposalsComponent />;
+    if (proposals.length === 0) {
+        return <NoProposalsComponent />; // Show message if no proposals are passed
     }
 
+    // Render the Calendar
     return (
-        <div className="h-full w-full font-sans text-gray-900">
-            <div className="">
-                <FullCalendar
-                    plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]}
-                    initialView="dayGridMonth"
-                    headerToolbar={{
-                        left: 'prev,next today',
-                        center: 'title',
-                        right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
-                    }}
-                    events={calendarEvents}
-                    eventClick={handleEventClick}
-                    eventClassNames="cursor-pointer"
-                    height="80vh"
-                    themeSystem="standard"
-                    titleFormat={{
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric',
-                        weekday: 'long'
-                    }}
-                />
-            </div>
+        <div className="h-full w-full font-sans text-gray-800 bg-white p-4 shadow-md rounded-lg"> {/* Added padding/styling */}
+            <FullCalendar
+                plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]}
+                initialView="dayGridMonth" // Default view
+                headerToolbar={{
+                    left: 'prev,next today',
+                    center: 'title',
+                    right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek' // Available views
+                }}
+                events={calendarEvents} // Pass the mapped events
+                eventClick={handleEventClick} // Set the click handler
+                height="auto" // Adjust height automatically, or set specific like "70vh"
+                contentHeight="auto" // Adjust content height
+                themeSystem="standard" // Use standard theme
+                // More specific title format if desired
+                // titleFormat={{ year: 'numeric', month: 'long' }}
+                // Custom styles for events (can also be done via CSS)
+                eventTimeFormat={{ // Format time display in timeGrid views
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    meridiem: 'short' // e.g., 10:30a
+                }}
+                slotLabelFormat={{ // Format time slots on the side in timeGrid views
+                     hour: 'numeric',
+                     minute: '2-digit',
+                     omitZeroMinute: false,
+                     meridiem: 'short'
+                }}
+                // Consider adding selectable={true} and select={handleDateSelect} for adding events
+            />
 
+            {/* Render Popup when an event is selected */}
             {selectedEvent && (
                 <Popup
+                    // Ensure the Popup component's expected prop name matches 'selectedProposal'
+                    // And that the 'selectedEvent' object structure matches Popup's expected interface
                     selectedProposal={selectedEvent}
                     closePopup={closePopup}
-                    onProposalUpdated={() => { }}
+                    // Pass a function if Popup needs to trigger a refresh after an update
+                    onProposalUpdated={() => {
+                        console.log("Proposal update action triggered from CalendarView Popup");
+                        // Optionally, trigger a refetch in the parent component here if needed
+                        // For now, just closing the popup.
+                        closePopup();
+                     }}
                 />
             )}
         </div>
