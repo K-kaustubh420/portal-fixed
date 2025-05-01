@@ -1,8 +1,8 @@
 // Example for app/layout.tsx
-import { AuthProvider } from '@/context/AuthContext'; // Adjust path
-import './globals.css'; // Your global styles
+import { AuthProvider } from '@/context/AuthContext'; 
+import './globals.css'; 
 
-// Other imports (metadata, fonts, etc.)
+
 
 export default function RootLayout({
   children,
@@ -12,8 +12,8 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <AuthProvider> {/* Wrap with the provider */}
-          {/* Your existing layout structure (Navbar might be here or in page) */}
+        <AuthProvider> 
+         
           {children}
         </AuthProvider>
       </body>

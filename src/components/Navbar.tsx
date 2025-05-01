@@ -10,22 +10,17 @@ import { RxDashboard } from "react-icons/rx";
 import { LuGitPullRequestCreate } from "react-icons/lu";
 import { BiLogOut } from "react-icons/bi";
 
-// Import context hook
 import { useAuth } from '@/context/AuthContext'; // Adjust path if necessary
 
 const Navbar = () => {
-    // --- Local State for Popup and Form ---
     const [isLoginPopupOpen, setIsLoginPopupOpen] = useState(false);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loginError, setLoginError] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    // --- ---
 
-    // --- Get Global State & Actions from Context ---
     const { user, isLoggedIn, isLoading, authenticateWithToken, logout } = useAuth();
     const router = useRouter();
-    // --- ---
 
     const toggleLoginPopup = () => {
         setIsLoginPopupOpen(!isLoginPopupOpen);
@@ -44,10 +39,7 @@ const Navbar = () => {
         try {
             const response = await fetch("https://pmspreview-htfbhkdnffcpf5dz.centralindia-01.azurewebsites.net/api/login", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Accept": "application/json"
-                },
+                headers: { "Content-Type": "application/json", "Accept": "application/json" },
                 body: JSON.stringify({ email, password }),
             });
 
@@ -61,7 +53,7 @@ const Navbar = () => {
                 if (authSuccessful) {
                     console.log("Navbar Login: Authentication via context successful.");
                     setIsLoginPopupOpen(false);
-                    router.push("/dashboard");
+                    router.push("/dashboard"); // Redirect to dashboard on successful login
                 } else {
                     console.error("Navbar Login: Context authentication failed.");
                     setLoginError("Login succeeded but failed to fetch user details. Please try again.");
@@ -85,17 +77,16 @@ const Navbar = () => {
     };
 
     const handleLogout = () => {
-        logout();
-       
+        logout(); // Clear auth state via context
+        // Redirect immediately after logout completes. router.push is already fast.
         router.push('/');
     };
 
     const getUserInitial = () => user?.name ? user.name.charAt(0).toUpperCase() : '?';
 
-    // Define roles that should NOT see the proposal link
     const restrictedRolesForProposal = ['hod', 'dean', 'chair', 'vice_chair'];
 
-    // --- Loading State ---
+    // Loading state based on context's isLoading
     if (isLoading) {
         return (
              <nav className="navbar bg-[#0b4da1] text-white shadow-sm rounded-sm flex w-full h-16 items-center justify-between px-4 sticky top-0 z-40 animate-pulse">
@@ -107,7 +98,6 @@ const Navbar = () => {
         );
     }
 
-    // --- Main Navbar Render ---
     return (
         <nav className="navbar bg-[#0b4da1] text-white shadow-sm rounded-sm flex w-full h-16 items-center justify-between px-4 sticky top-0 z-40">
             {/* Logo and Title */}
@@ -120,17 +110,16 @@ const Navbar = () => {
                 </Link>
             </div>
 
-            {/* Actions: Render based on isLoggedIn from context */}
+            {/* Actions */}
             <div className="flex-none gap-2">
-                {isLoggedIn && user ? ( // Check for user object as well
+                {isLoggedIn && user ? (
                     <div className="dropdown dropdown-end">
                         <label tabIndex={0} className="btn btn-ghost btn-circle avatar placeholder hover:bg-[#093f87]">
-                             <div className="flex items-center justify-center"> {/* Centered icon */}
+                             <div className="flex items-center justify-center">
                                 <BsThreeDotsVertical size={20} />
                             </div>
                          </label>
-                        <ul tabIndex={0} className="menu menu-sm dropdown-content mt-3 z-[50] p-2 shadow bg-slate-200 rounded-box w-56 text-black/90"> {/* Increased width slightly */}
-                            {/* User Info Header */}
+                        <ul tabIndex={0} className="menu menu-sm dropdown-content mt-3 z-[50] p-2 shadow bg-slate-200 rounded-box w-56 text-black/90">
                             <li className="flex items-center space-x-3 px-4 py-2 border-b border-base-300 mb-1">
                                 <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center">
                                     <span className="text-xl font-semibold text-white">{getUserInitial()}</span>
@@ -140,14 +129,11 @@ const Navbar = () => {
                                     <p className="text-xs text-gray-500 truncate" title={user.email}>{user.email}</p>
                                 </div>
                             </li>
-                            {/* Dashboard Link */}
                             <li>
                                 <Link href="/dashboard" className="flex items-center space-x-2 hover:bg-white py-2">
                                     <RxDashboard size={16} /><span>Dashboard</span>
                                 </Link>
                             </li>
-
-                            {/* --- Conditionally Render Proposal Link --- */}
                             {!restrictedRolesForProposal.includes(user.role) && (
                                 <li>
                                     <Link href="/proposal" className="flex items-center space-x-2 hover:bg-white py-2">
@@ -156,9 +142,6 @@ const Navbar = () => {
                                     </Link>
                                 </li>
                             )}
-                            {/* --- End Conditional Render --- */}
-
-                            {/* Logout Button */}
                             <li>
                                 <button
                                     onClick={handleLogout}
@@ -170,7 +153,6 @@ const Navbar = () => {
                         </ul>
                     </div>
                 ) : (
-                    // Login Button
                     <button onClick={toggleLoginPopup} className="btn btn-ghost bg-[#07336e] px-3 sm:px-4 py-1 h-auto min-h-0 rounded-lg hover:bg-[#093f87] text-white font-semibold focus:outline-none focus:shadow-outline text-sm sm:text-base">
                         Login
                     </button>
@@ -180,7 +162,7 @@ const Navbar = () => {
 
             {/* Login Popup */}
             {isLoginPopupOpen && (
-                <div className="fixed inset-0 w-full h-full flex justify-center items-center   backdrop-blur-sm z-50 transition-opacity duration-300"> {/* Darker overlay */}
+                <div className="fixed inset-0 w-full h-full flex justify-center items-center backdrop-blur-sm z-50 transition-opacity duration-300">
                     <div className="bg-white shadow-2xl rounded-lg p-6 md:p-8 w-full max-w-md relative m-4 transform transition-all duration-300 scale-100">
                         <button onClick={toggleLoginPopup} className="absolute top-3 right-3 p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full" aria-label="Close login popup"><RxCross2 size={20} /></button>
                         <h2 className="text-2xl font-semibold text-center text-gray-800 mb-2">Sign In</h2>

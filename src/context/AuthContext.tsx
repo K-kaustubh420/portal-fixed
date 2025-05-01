@@ -139,9 +139,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             
             return false; // Indicate failure
         }
-    }, []); // No dependencies needed here as it uses function arguments or constants
+    }, []); 
 
-    // Logout function remains the same
+    
     const logout = useCallback(() => {
         console.log("AuthProvider: logout function called.");
         clearAuthData();

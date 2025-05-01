@@ -305,14 +305,28 @@ const ConvenerDashboard: React.FC = () => {
                      <Recents recentAppliedProposals={recentPendingOrReview.map(p => ({ id: String(p.id), title: p.title || 'N/A', status: p.status, date: p.created_at, originalItem: p }))} handleProposalClick={handleListItemClick} />
                  </div>
                  <div className="lg:col-span-2 space-y-6">
-                     <Overview eventProposals={validProposals.map(p => ({ id: String(p.id), title: p.title || 'N/A', start: p.start, end: p.end, description: p.description?.substring(0, 100) + (p.description && p.description.length > 100 ? '...' : '') || '-', awaiting: p.awaiting, originalItem: p }))} handleProposalClick={handleListItemClick} />
+                     <Overview eventProposals={validProposals.map(p => ({ id: String(p.id), title: p.title || 'N/A', start: p.start, end: p.end, description: p.description?.substring(0, 100) + (p.description && p.description.length > 100 ? '...' : '') || '-', awaiting: p.awaiting, originalItem: p, status: p.status }))} handleProposalClick={handleListItemClick} />
                  </div>
             </div>
              <div className="mt-6 bg-white p-4 rounded-lg shadow">
                  <CalendarView proposals={validProposals.map(p => ({ id: String(p.id), title: p.title || 'N/A', start: p.start, end: p.end, status: p.status, date: p.start, organizer: p.user?.department || 'N/A', convenerName: p.user?.name || `User ${p.user_id}`, email: p.user?.email || undefined, cost: 0, category: p.category || 'N/A', description: p.description || 'N/A', designation: p.user?.designation || undefined, detailedBudget: [], durationEvent: '', estimatedBudget: 0, eventDate: p.start, eventDescription: p.description || 'N/A', eventEndDate: p.end, eventStartDate: p.start, eventTitle: p.title || 'N/A', organizingDepartment: p.user?.department || 'N/A', proposalStatus: p.status, submissionTimestamp: p.created_at, convenerEmail: p.user?.email || undefined, location: undefined, chiefGuestName: undefined, chiefGuestDesignation: undefined, fundingDetails: undefined, pastEvents: undefined, relevantDetails: undefined, sponsorshipDetails: undefined, sponsorshipDetailsRows: undefined, rejectionMessage: undefined, reviewMessage: undefined, clarificationMessage: undefined, messages: [] }))} />
              </div>
-            {selectedProposalDetail && ( <Popup selectedProposal={selectedProposalDetail} closePopup={closePopup} onProposalUpdated={handleProposalUpdated} /> )}
-            {isPopupLoading && ( <div className="fixed inset-0 backdrop-blur-sm   bg-opacity-30 flex justify-center items-center z-[60]"> <span className="loading loading-bars text-gray-600 loading-lg"></span> </div> )}
+            {selectedProposalDetail && (
+                <Popup
+                    selectedProposal={selectedProposalDetail}
+                    closePopup={closePopup}
+                    onProposalUpdated={handleProposalUpdated}
+                    token={token} // <-- Pass the token
+                    apiBaseUrl={API_BASE_URL} // <-- Pass the API base URL
+                />
+            )}
+
+            {/* Loading indicator for popup data fetching */}
+            {isPopupLoading && (
+                 <div className="fixed inset-0 backdrop-blur-sm bg-black bg-opacity-30 flex justify-center items-center z-[60]">
+                    <span className="loading loading-bars text-white loading-lg"></span> {/* Changed color */}
+                 </div>
+            )}
         </div>
     );
 };
