@@ -444,7 +444,7 @@ const ViceChairDashboard: React.FC = () => {
     return (
         <div className="vice-chair-dashboard p-4 md:p-6 space-y-6 bg-gray-50 text-gray-900 min-h-screen">
             <h1 className="text-2xl md:text-3xl font-bold text-slate-800 mb-6 border-b pb-3">
-                {capitalize(expectedUserRole)} Dashboard
+                {capitalize(expectedUserRole)}/ Associate Chair Dashboard
             </h1>
 
             {dashboardState.loading && (
