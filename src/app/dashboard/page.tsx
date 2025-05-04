@@ -13,6 +13,7 @@ import DeanDashboard from '../deandash/deandash';// <<< ADJUST PATH IF NECESSARY
 import ConvenerDashboard from '@/app/convenerdashboard/convenerdahboard';
 import ChairDashboard from '../chairperson/ChairDashboard';
 import ViceChairDashboard from '../associatechair/ViceDashboard';
+import AccountsDashboard from '../accounts/accounts';
 
 // React component names should be PascalCase
 const Page = () => {
@@ -51,6 +52,9 @@ const Page = () => {
     }
     else if (role=='vice_chair'){
       DashboardComponent = <ViceChairDashboard />;
+    }
+    else if (role=='accounts'){
+      DashboardComponent = <AccountsDashboard />;
     }
      else {
       // Assuming 'convener' or any other role falls here

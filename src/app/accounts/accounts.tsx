@@ -1,57 +1,35 @@
-// src/components/AccountsDashboard.tsx
-"use client";
+// src/app/accounts/accounts.tsx
+'use client'; // Necessary for hooks (useState, useEffect) and client-side interactions
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { useAuth } from '@/context/AuthContext'; // Adjust path if needed
-import ProposalPopup from './popup'; // Import the popup component
-import Stats from './stats'; // Import the updated Stats component
-import { Loader2, CheckCircle } from 'lucide-react'; // For loading spinner and status icon
+import React, { useState, useEffect, useMemo } from 'react'; // Added useMemo
+import { ClockIcon, CurrencyRupeeIcon, ChartBarIcon } from '@heroicons/react/24/outline';
+import { Loader2, CheckCircle } from 'lucide-react'; // Added for dashboard loading state
+import { useAuth } from '@/context/AuthContext';
+import Stats from './Statsbar'; // Or './stats' - ensure filename matches
+import ProposalPopup from './popup'; // <--- IMPORT THE POPUP COMPONENT (ensure path is correct, e.g., ./ProposalPopup.tsx)
+import { Proposal, DepartmentTotal } from '@/types';
 
-// --- Define TypeScript Interfaces (no changes needed here) ---
-interface BillItem {
-    id: number;
-    proposal_id: number;
-    category: string;
-    sub_category: string;
-    type: string;
-    quantity: number;
-    cost: number;
-    amount: number;
-    status: string;
-    created_at: string;
-    updated_at: string;
-}
-
-interface Proposal {
-    id: number;
-    event_name: string;
-    convener_name: string;
-    convener_email: string;
-    department_name: string;
-    bill_items: BillItem[];
-    isSettled?: boolean; // Keep this for UI updates after settlement
-}
-
-// --- Helper function to calculate total amount for one proposal ---
-// (Moved outside component or place in utils if preferred)
-const calculateTotalAmountForProposal = (billItems: BillItem[]): number => {
-    return billItems.reduce((sum, item) => sum + (item.amount || 0), 0);
+// --- Helper Functions (Keep as they are) ---
+const formatCurrency = (value: number | null | undefined): string => {
+    if (value === null || typeof value === 'undefined' || isNaN(value)) return '₹ N/A';
+    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
 };
 
-// --- Format Currency Helper ---
-// (Moved outside component or place in utils if preferred)
-const formatCurrency = (amount: number | null | undefined): string => {
-    if (amount === null || amount === undefined) return 'N/A';
-    // Adjust locale and currency as needed
-    return amount.toLocaleString('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 });
+// Calculate total for the main dashboard/stats
+const calculateProposalTotal = (proposal: Proposal): number => {
+    if (!proposal || !proposal.bill_items) return 0;
+    return proposal.bill_items.reduce((sum, item) => { const amount = typeof item.amount === 'number' ? item.amount : 0; return sum + amount; }, 0);
 };
 
-// --- The Dashboard Component ---
+// --- Main Component ---
 const AccountsDashboard: React.FC = () => {
-    const { token, isLoading: isAuthLoading, isLoggedIn } = useAuth();
-    const [proposals, setProposals] = useState<Proposal[]>([]);
+    // --- State Definitions ---
+    const [proposals, setProposals] = useState<Proposal[]>([]); // Stores the list of proposals from API
     const [isLoadingData, setIsLoadingData] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
+
+    // --- Auth State ---
+    const { token, isLoading: isAuthLoading, isLoggedIn } = useAuth();
 
     // --- State for Popup ---
     const [selectedProposal, setSelectedProposal] = useState<Proposal | null>(null);
@@ -63,75 +41,74 @@ const AccountsDashboard: React.FC = () => {
 
     // --- Fetch Data Effect ---
     useEffect(() => {
-        if (isAuthLoading || !token) {
-            if (!isAuthLoading && !token) setIsLoadingData(false);
+        if (isAuthLoading || !isLoggedIn || !token) {
+            if (!isAuthLoading) setIsLoadingData(false);
             return;
         }
-
-        const fetchProposals = async () => {
+        const fetchData = async () => {
             setIsLoadingData(true);
             setError(null);
-            console.log("AccountsDashboard: Fetching UNSETTLED proposals list..."); // Updated log
-
             try {
-                const response = await fetch("https://pmspreview-htfbhkdnffcpf5dz.centralindia-01.azurewebsites.net/api/accounts/proposals/", {
-                    method: "GET",
-                    headers: { "Authorization": `Bearer ${token}`, "Accept": "application/json" },
+                const response = await fetch('https://pmspreview-htfbhkdnffcpf5dz.centralindia-01.azurewebsites.net/api/accounts/proposals/', {
+                    method: 'GET',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json', }
                 });
-
                 if (!response.ok) {
-                    let errorMsg = `HTTP error! Status: ${response.status}`;
+                    let errorMsg = `Failed to fetch data. Status: ${response.status}`;
                     try { const errorData = await response.json(); errorMsg = errorData.message || errorMsg; } catch (e) { }
                     throw new Error(errorMsg);
                 }
-
                 const data: Proposal[] = await response.json();
-                console.log("AccountsDashboard: Unsettled proposals list received:", data);
-                // All proposals fetched are initially unsettled
+                // Initialize proposals with isSettled: false and set initial settlement status map
                 const proposalsWithStatus = data.map(p => ({ ...p, isSettled: false }));
                 setProposals(proposalsWithStatus);
-
                 const initialStatus: { [key: number]: 'idle' } = {};
                 data.forEach(p => initialStatus[p.id] = 'idle');
                 setSettlementStatus(initialStatus);
 
             } catch (err: any) {
-                console.error("AccountsDashboard: Error fetching proposals list:", err);
-                setError(err.message || "Failed to fetch proposal data.");
+                console.error("Error fetching pending settlements:", err);
+                setError(err.message || 'An unexpected error occurred.');
                 setProposals([]);
-            } finally {
-                setIsLoadingData(false);
-            }
+            } finally { setIsLoadingData(false); }
         };
+        fetchData();
+    }, [token, isLoggedIn, isAuthLoading]);
 
-        fetchProposals();
 
-    }, [token, isAuthLoading]);
+    // --- Derived Data Calculations (Memoized) ---
+    // Filter based on settlement status map OR the proposal's isSettled flag
+    const pendingProposals = useMemo(() => {
+        return proposals.filter(p => !(settlementStatus[p.id] === 'success' || p.isSettled));
+    }, [proposals, settlementStatus]);
 
-    // --- Calculate Stats based ONLY on the fetched (pending) proposals ---
-    const statsData = useMemo(() => {
-        // Filter proposals that are NOT marked as settled on the client-side
-        // This ensures stats update correctly after a successful settlement action
-        const pendingProposals = proposals.filter(p => !(settlementStatus[p.id] === 'success' || p.isSettled));
+    const pendingCount = pendingProposals.length;
 
-        const count = pendingProposals.length;
-        const totalValue = pendingProposals.reduce((sum, proposal) => {
-            return sum + calculateTotalAmountForProposal(proposal.bill_items);
+    const totalPendingValue = useMemo(() => {
+        return pendingProposals.reduce((totalSum, proposal) => {
+            return totalSum + calculateProposalTotal(proposal); // Use the main helper
         }, 0);
+    }, [pendingProposals]);
 
-        return {
-            pendingProposalsCount: count,
-            totalPendingValue: totalValue,
-        };
-    }, [proposals, settlementStatus]); // Recalculate when proposals list or settlement status changes
+    const departmentTotals = useMemo(() => {
+        return pendingProposals.reduce<DepartmentTotal[]>((accumulator, proposal) => {
+            const departmentName = proposal.department_name || 'Unknown Department';
+            const proposalTotal = calculateProposalTotal(proposal); // Use the main helper
+            const existingDept = accumulator.find(d => d.department_name === departmentName);
+            if (existingDept) { existingDept.totalAmount += proposalTotal; }
+            else { accumulator.push({ department_name: departmentName, totalAmount: proposalTotal }); }
+            return accumulator;
+        }, []);
+    }, [pendingProposals]);
 
-
-    // --- Popup Handlers (no changes needed) ---
+    // --- Popup Handlers ---
     const handleRowClick = (proposal: Proposal) => {
         setSelectedProposal(proposal);
         setIsPopupOpen(true);
         setSettlementError(null);
+        // Determine initial status for the popup
         const currentEffectiveStatus = (settlementStatus[proposal.id] === 'success' || proposal.isSettled) ? 'success' : settlementStatus[proposal.id] ?? 'idle';
+        // Ensure the status map reflects the current state when opening
         setSettlementStatus(prev => ({
             ...prev,
             [proposal.id]: currentEffectiveStatus
@@ -140,10 +117,10 @@ const AccountsDashboard: React.FC = () => {
 
     const closePopup = () => {
         setIsPopupOpen(false);
-        setSelectedProposal(null);
+        setTimeout(() => setSelectedProposal(null), 300); // Delay clear for animation
     };
 
-    // --- Bill Settlement Handler (no changes needed) ---
+    // --- Bill Settlement Handler ---
     const handleSettleBill = async (proposalId: number) => {
         if (!token) {
             setSettlementError("Authentication token not found.");
@@ -164,7 +141,7 @@ const AccountsDashboard: React.FC = () => {
                     "Accept": "application/json",
                     "Content-Type": "application/json",
                 },
-                // body: JSON.stringify({}) // Uncomment if needed
+                 // body: JSON.stringify({}) // Add body if needed
             });
 
             if (!response.ok) {
@@ -174,14 +151,15 @@ const AccountsDashboard: React.FC = () => {
             }
 
             console.log(`Bill settled successfully via API for proposal ID: ${proposalId}`);
+            // Update state: Mark success in map AND flag proposal as settled
             setSettlementStatus(prev => ({ ...prev, [proposalId]: 'success' }));
-
             setProposals(prevProposals =>
                 prevProposals.map(p =>
                     p.id === proposalId ? { ...p, isSettled: true } : p
                 )
             );
-            setSelectedProposal(prev => prev ? { ...prev, isSettled: true } : null);
+            // Update selected proposal so popup shows settled state
+             setSelectedProposal(prev => prev ? { ...prev, isSettled: true } : null);
 
         } catch (err: any) {
             console.error("AccountsDashboard: Error settling bill:", err);
@@ -191,98 +169,182 @@ const AccountsDashboard: React.FC = () => {
         }
     };
 
-
     // --- Render Logic ---
-    if (isAuthLoading) {
-        return <div className="p-6 text-center text-gray-500">Authenticating...</div>;
-    }
-    if (!isLoggedIn && !isAuthLoading) {
-        return <div className="p-6 text-center text-red-600">Please log in to view the accounts dashboard.</div>;
-    }
-    if (isLoadingData) {
-        return (
-            <div className="flex justify-center items-center min-h-[calc(100vh-200px)]">
-                <Loader2 className="animate-spin text-blue-500 h-12 w-12" />
-                <span className="ml-4 text-lg text-gray-600">Loading Pending Proposals...</span>
-            </div>
-        );
-    }
-    if (error) {
-        return <div className="p-6 my-4 bg-red-100 border border-red-400 text-red-700 rounded-md shadow"><strong>Error loading data:</strong> {error}</div>;
-    }
 
-    // Filter out settled proposals for the main table display
-    const proposalsToDisplay = proposals.filter(p => !(settlementStatus[p.id] === 'success' || p.isSettled));
+    // Auth Loading
+    if (isAuthLoading) return ( /* ... Auth loading indicator ... */
+        <div className="flex justify-center items-center min-h-[calc(100vh-150px)] bg-white text-gray-700">
+            <Loader2 className="animate-spin text-blue-600 h-8 w-8" />
+            <p className="ml-3 text-lg">Authenticating...</p>
+        </div>
+    );
+    // Not Logged In
+    if (!isLoggedIn) return ( /* ... Not logged in message ... */
+         <div className="flex flex-col justify-center items-center min-h-[calc(100vh-150px)] text-center p-8 bg-white">
+             <p className="text-xl text-orange-600 font-semibold mb-4">Access Denied</p>
+             <p className="text-gray-800 mb-6">Please log in to view the Accounts Dashboard.</p>
+         </div>
+    );
+    // Data Loading
+    if (isLoadingData) return ( /* ... Data loading indicator ... */
+      <div className="flex justify-center items-center min-h-[calc(100vh-150px)] bg-white text-gray-700">
+        <Loader2 className="animate-spin text-blue-600 h-12 w-12" />
+         <p className="ml-4 text-lg">Loading Pending Proposals...</p>
+      </div>
+    );
+     // Error Fetching Data
+     if (error && !isLoadingData) return ( /* ... Error message ... */
+       <div className="flex flex-col justify-center items-center min-h-[calc(100vh-150px)] text-center p-8 bg-white">
+         <p className="text-2xl text-red-600 font-semibold mb-4">Oops! Something went wrong.</p>
+         <p className="text-gray-800 mb-6">{error}</p>
+         <button className="btn bg-blue-600 hover:bg-blue-700 text-white btn-sm" onClick={() => window.location.reload()}> Try Again </button>
+       </div>
+     );
 
+    // Filter proposals for display using the memoized list
+    const proposalsToDisplay = pendingProposals;
 
+    // --- Main Dashboard Content ---
     return (
-        <div className="p-4 md:p-6 space-y-6">
-            <h1 className="text-2xl font-semibold text-gray-800">Accounts Dashboard</h1>
+        // Use light theme classes
+        <div className="p-4 md:p-6 lg:p-8 bg-white text-gray-900 min-h-screen">
+            <h1 className="text-2xl md:text-3xl font-bold mb-6 text-black">Accounts Dashboard</h1>
 
-            {/* Render Stats Section with pending data */}
-            <Stats {...statsData} />
+            {/* --- Top Row: Summary Cards --- */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 mb-6 md:mb-8">
+                {/* Card 1: Pending Settlement Count */}
+                <div className="card bg-white border border-gray-200 shadow-md hover:shadow-lg transition-shadow duration-300">
+                    <div className="card-body">
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <p className="text-xs sm:text-sm text-gray-500 uppercase font-semibold tracking-wider">Pending Settlements</p>
+                                <p className="text-2xl md:text-3xl font-bold mt-1 text-gray-800">{pendingCount}</p>
+                                <p className="text-xs text-gray-400 mt-1">Proposals awaiting action</p>
+                            </div>
+                            <div className="bg-yellow-100 p-2 rounded-full">
+                                <ClockIcon className="h-6 w-6 md:h-8 md:w-8 text-yellow-600" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-            <h2 className="text-xl font-semibold text-gray-700 mt-2 mb-4">Pending Settlements</h2>
+                {/* Card 2: Total Pending Value */}
+                <div className="card bg-white border border-gray-200 shadow-md hover:shadow-lg transition-shadow duration-300">
+                    <div className="card-body">
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <p className="text-xs sm:text-sm text-gray-500 uppercase font-semibold tracking-wider">Total Pending Value</p>
+                                <p className="text-2xl md:text-3xl font-bold mt-1 text-gray-800">{formatCurrency(totalPendingValue)}</p>
+                                <p className="text-xs text-gray-400 mt-1">Estimated sum of pending bills</p>
+                            </div>
+                            <div className="bg-green-100 p-2 rounded-full">
+                                <CurrencyRupeeIcon className="h-6 w-6 md:h-8 md:w-8 text-green-600" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-            {/* Display table only if there are proposals to display */}
-            {proposalsToDisplay.length === 0 && !isLoadingData ? (
-                 <div className="p-6 text-center text-gray-500 bg-white rounded-lg shadow border">
-                     {proposals.length > 0 ? 'All proposals have been settled.' : 'No pending proposals found.'}
-                 </div>
-             ) : (
-                <div className="overflow-x-auto shadow-md rounded-lg border border-gray-200 bg-white">
-                    <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
+                {/* Card 3: Departments Overview */}
+                <div className="card bg-white border border-gray-200 shadow-md hover:shadow-lg transition-shadow duration-300">
+                    <div className="card-body">
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <p className="text-xs sm:text-sm text-gray-500 uppercase font-semibold tracking-wider">Departments Overview</p>
+                                <p className="text-2xl md:text-3xl font-bold mt-1 text-gray-800">{departmentTotals.length}</p>
+                                <p className="text-xs text-gray-400 mt-1">Departments with pending items</p>
+                            </div>
+                            <div className="bg-blue-100 p-2 rounded-full">
+                                <ChartBarIcon className="h-6 w-6 md:h-8 md:w-8 text-blue-600" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* --- Chart Section --- */}
+            <div className="mb-6 md:mb-8">
+                {/* Pass departmentTotals derived from pendingProposals */}
+                <Stats data={departmentTotals} title="Department-wise Pending Amount Distribution" />
+            </div>
+
+            {/* --- Pending Settlements Table Section --- */}
+            <div>
+                <h2 className="text-xl md:text-2xl font-semibold mb-4 text-gray-800">Pending Settlements List</h2>
+                <div className="overflow-x-auto bg-white rounded-lg shadow-md border border-gray-200">
+                    <table className="table-auto w-full">
+                        <thead className="bg-gray-100 text-xs uppercase text-gray-600 tracking-wider">
                             <tr>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Event Name</th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Convener</th>
-                                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total Est. Amount</th>
-                                <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                                <th className="p-3 text-left">#</th>
+                                <th className="p-3 text-left">Event Name</th>
+                                <th className="p-3 text-left">Department</th>
+                                <th className="p-3 text-left">Convener</th>
+                                <th className="p-3 text-right">Est. Amount</th>
+                                <th className="p-3 text-center">Action</th>
                             </tr>
                         </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                            {proposalsToDisplay.map((proposal) => (
-                                <tr
-                                    key={proposal.id}
-                                    className="hover:bg-indigo-50 transition-colors duration-150 cursor-pointer"
-                                    onClick={() => handleRowClick(proposal)}
-                                >
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{proposal.event_name}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{proposal.department_name}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                                        {proposal.convener_name}
-                                        {proposal.convener_email && <span className="block text-xs text-gray-400">{proposal.convener_email}</span>}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right font-semibold">
-                                        {/* Use the helper function for consistency */}
-                                        {formatCurrency(calculateTotalAmountForProposal(proposal.bill_items))}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
-                                         {/* Changed status column to View/Settle action hint */}
-                                         <span className="text-blue-600 hover:text-blue-800 font-medium">
-                                             View Details
-                                         </span>
+                        <tbody className="divide-y divide-gray-200">
+                            {/* Handle Empty State */}
+                            {proposalsToDisplay.length === 0 ? (
+                                <tr>
+                                    <td colSpan={6} className="text-center py-10 text-gray-500">
+                                        {proposals.length > 0 ? 'All pending proposals have been settled.' : 'No pending proposals found.'}
                                     </td>
                                 </tr>
-                            ))}
+                            ) : (
+                                // Map through proposalsToDisplay (filtered list)
+                                proposalsToDisplay.map((proposal, index) => (
+                                    <tr
+                                        key={proposal.id}
+                                        className="hover:bg-blue-50 transition-colors duration-150 cursor-pointer"
+                                        // --->>> ONCLICK ADDED HERE <<<---
+                                        onClick={() => handleRowClick(proposal)}
+                                    >
+                                        <th className="p-3 text-sm font-medium text-gray-700">{index + 1}</th>
+                                        <td className="p-3 text-sm font-medium text-gray-900">{proposal.event_name}</td>
+                                        <td className="p-3 text-sm text-gray-700">{proposal.department_name || 'N/A'}</td>
+                                        <td className="p-3 text-sm text-gray-700">
+                                            <div>{proposal.convener_name || 'N/A'}</div>
+                                            {proposal.convener_email && <div className="text-xs text-gray-500">{proposal.convener_email}</div>}
+                                        </td>
+                                        <td className="p-3 text-sm text-right font-semibold text-gray-800">{formatCurrency(calculateProposalTotal(proposal))}</td>
+                                        <td className="p-3 text-center">
+                                            {/* Changed Button to Span as visual cue */}
+                                            <span className="text-blue-600 hover:text-blue-800 font-medium text-xs">
+                                                View Details
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
                         </tbody>
+                        {/* Table Footer */}
+                        {proposalsToDisplay.length > 0 && (
+                            <tfoot className="bg-gray-100 font-bold text-gray-700">
+                                <tr>
+                                    <td colSpan={4} className="p-3 text-right uppercase text-sm">Total Pending Value:</td>
+                                    <td className="p-3 text-right text-sm">{formatCurrency(totalPendingValue)}</td>
+                                    <td className="p-3"></td>
+                                </tr>
+                            </tfoot>
+                        )}
                     </table>
                 </div>
-             )}
+            </div>
 
-
-            {/* Render the Popup conditionally */}
+            {/* --- RENDER THE POPUP CONDITIONALLY --- */}
             {isPopupOpen && selectedProposal && (
                 <ProposalPopup
                     proposal={selectedProposal}
                     onClose={closePopup}
                     onSettleBill={handleSettleBill}
-                    settlementStatus={ (settlementStatus[selectedProposal.id] === 'success' || selectedProposal.isSettled) ? 'success' : settlementStatus[selectedProposal.id] ?? 'idle' }
+                    // Pass the effective settlement status
+                    settlementStatus={(settlementStatus[selectedProposal.id] === 'success' || selectedProposal.isSettled) ? 'success' : settlementStatus[selectedProposal.id] ?? 'idle'}
                     settlementError={settlementError}
                 />
             )}
-        </div>
+            {/* End of Popup Rendering */}
+
+        </div> // End of main content container
     );
 };
 

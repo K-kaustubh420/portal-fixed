@@ -300,8 +300,66 @@ const Popup: React.FC<PopupProps> = ({ selectedProposal, closePopup, onProposalU
                                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3 mb-4">
                                     <DetailItem label="Est. Total Budget" value={formatCurrency(selectedProposal.estimatedBudget)} /> <DetailItem label="University Fund" value={formatCurrency(selectedProposal.fundingDetails?.universityFund)} /> <DetailItem label="Registration Fund" value={formatCurrency(selectedProposal.fundingDetails?.registrationFund)} /> <DetailItem label="Sponsorship Fund" value={formatCurrency(selectedProposal.fundingDetails?.sponsorshipFund)} /> <DetailItem label="Other Fund" value={formatCurrency(selectedProposal.fundingDetails?.otherSourcesFund)} />
                                 </div>
-                                {(selectedProposal.detailedBudget && selectedProposal.detailedBudget.length > 0) && (<div className="mt-4 pt-3 border-t border-gray-200"> <h4 className="text-md font-medium text-gray-700 mb-2 flex items-center gap-1"><FileText size={16} /> Estimated Budget Items</h4> <div className="overflow-x-auto max-h-60 border rounded-md"> <table className="table table-sm w-full text-xs"> <thead className="sticky top-0 bg-gray-100 z-10"> <tr> <th className="p-2">Category</th> <th className="p-2">Subcategory</th> <th className="p-2">Type</th> {selectedProposal.detailedBudget.some(it => it.status) && <th className='p-2 text-center'>Status</th>} <th className='p-2 text-right'>Qty</th> <th className='p-2 text-right'>Cost/Unit</th> <th className='p-2 text-right'>Total</th> </tr> </thead> <tbody> {selectedProposal.detailedBudget.map((item, index) => (<tr key={item.id || index} className="hover:bg-gray-50 border-b last:border-b-0 border-gray-200"> <td className="p-2">{item.category}</td> <td className="p-2">{item.sub_category}</td> <td className="p-2">{item.type || '-'}</td> {selectedProposal.detailedBudget.some(it => it.status) && <td className='p-2 text-center'><span className={`font-medium px-1.5 py-0.5 rounded-full text-[10px] ${item.status === 'actual' ? 'bg-cyan-100 text-cyan-700' : 'bg-orange-100 text-orange-700'}`}> {item.status || 'N/A'} </span> </td>} <td className='p-2 text-right'>{item.quantity}</td> <td className='p-2 text-right'>{formatCurrency(item.cost)}</td> <td className='p-2 text-right font-medium'>{formatCurrency(item.amount)}</td> </tr>))} </tbody> <tfoot className='sticky bottom-0'> <tr className='font-bold bg-gray-100'> <td colSpan={selectedProposal.detailedBudget.some(it => it.status) ? 5 : 4} className='p-2 text-right'>Total Estimate:</td> <td className='p-2 text-right'>{formatCurrency(selectedProposal.estimatedBudget)}</td> </tr> </tfoot> </table> </div> </div>)}
-                                {(selectedProposal.sponsorshipDetailsRows && selectedProposal.sponsorshipDetailsRows.length > 0) && (<div className="mt-4 pt-3 border-t border-gray-200"> <h4 className="text-md font-medium text-gray-700 mb-2 flex items-center gap-1"><Award size={16} /> Sponsorship Details</h4> <div className="overflow-x-auto max-h-60 border rounded-md"> <table className="table table-sm w-full text-xs"> <thead className="sticky top-0 bg-gray-100 z-10"> <tr> <th className='p-2'>Sponsor/Category</th> <th className='p-2'>Mode</th> <th className='p-2 text-right'>Amount</th> <th className='p-2'>Reward</th> <th className='p-2'>Benefit</th> <th className='p-2'>About</th> </tr> </thead> <tbody> {selectedProposal.sponsorshipDetailsRows.map((sponsor, index) => (<tr key={sponsor.id || index} className="hover:bg-gray-50 border-b last:border-b-0 border-gray-200"> <td className='p-2'>{sponsor.category}</td> <td className='p-2'>{sponsor.mode}</td> <td className='p-2 text-right'>{formatCurrency(sponsor.amount)}</td> <td className='p-2'>{sponsor.reward}</td> <td className='p-2'>{sponsor.benefit}</td> <td className="p-2 max-w-[150px] truncate" title={sponsor.about}>{sponsor.about}</td> </tr>))} </tbody> </table> </div> </div>)}
+                                {(selectedProposal.detailedBudget && selectedProposal.detailedBudget.length > 0) &&
+                                 (<div className="mt-4 pt-3 border-t border-gray-200">
+                                     <h4 className="text-md font-medium text-gray-700 mb-2 flex items-center gap-1"><FileText size={16} /> Estimated Budget Items</h4> 
+                                <div className="overflow-x-auto max-h-60 border rounded-md"> 
+                                    <table className="table table-sm w-full text-xs"> 
+                                    <thead className="sticky top-0 bg-gray-100 z-10">
+                                         <tr>
+                                         <th className="p-2">Category</th> 
+                                         <th className="p-2">Subcategory</th> 
+                                         <th className="p-2">Type</th>
+                                          {selectedProposal.detailedBudget.some(it => it.status) && <th className='p-2 text-center'>Status</th>} 
+                                          <th className='p-2 text-right'>Qty</th> 
+                                          <th className='p-2 text-right'>Cost/Unit</th>
+                                           <th className='p-2 text-right'>Total</th> 
+                                           </tr> </thead>
+                                            <tbody> {selectedProposal.detailedBudget.map((item, index) => (<tr key={item.id || index} className="hover:bg-gray-50 border-b last:border-b-0 border-gray-200"> 
+                                                <td className="p-2">{item.category}</td> 
+                                            <td className="p-2">{item.sub_category}</td> 
+                                            <td className="p-2">{item.type || '-'}</td>
+                                             {selectedProposal.detailedBudget.some(it => it.status) && 
+                                             <td className='p-2 text-center'>
+                                                <span className={`font-medium px-1.5 py-0.5 rounded-full text-[10px] ${item.status === 'actual' ? 'bg-cyan-100 text-cyan-700' : 'bg-orange-100 text-orange-700'}`}> {item.status || 'N/A'} </span> </td>} 
+                                                <td className='p-2 text-right'>{item.quantity}</td> 
+                                                <td className='p-2 text-right'>{formatCurrency(item.cost)}</td> 
+                                                <td className='p-2 text-right font-medium'>{formatCurrency(item.amount)}</td> </tr>))} 
+                                                </tbody>
+                                                 <tfoot className='sticky bottom-0'> <tr className='font-bold bg-gray-100'>
+                                                     <td colSpan={selectedProposal.detailedBudget.some(it => it.status) ? 5 : 4} className='p-2 text-right'>Total Estimate:</td> 
+                                                     <td className='p-2 text-right'>{formatCurrency(selectedProposal.estimatedBudget)}</td>
+                                                      </tr>
+                                                       </tfoot>
+                                                       </table>
+                                                        </div>
+                                                         </div>)}
+                                {(selectedProposal.sponsorshipDetailsRows && selectedProposal.sponsorshipDetailsRows.length > 0) && (<div className="mt-4 pt-3 border-t border-gray-200"> <h4 className="text-md font-medium text-gray-700 mb-2 flex items-center gap-1"><Award size={16} /> Sponsorship Details</h4>
+                                
+                                 <div className="overflow-x-auto max-h-60 border rounded-md">
+                                     <table className="table table-sm w-full text-xs"> 
+                                        <thead className="sticky top-0 bg-gray-100 z-10"> <tr>
+                                             <th className='p-2'>Sponsor/Category</th>
+                                              <th className='p-2'>Mode</th>
+                                               <th className='p-2 text-right'>Amount</th> 
+                                               <th className='p-2'>Reward</th> 
+                                               <th className='p-2'>Benefit</th> 
+                                               <th className='p-2'>About</th>
+                                                </tr>
+                                                 </thead>
+                                                  <tbody> {selectedProposal.sponsorshipDetailsRows.map((sponsor, index) => (<tr key={sponsor.id || index} className="hover:bg-gray-50 border-b last:border-b-0 border-gray-200"> 
+                                                    <td className='p-2'>{sponsor.category}</td> 
+                                                    <td className='p-2'>{sponsor.mode}</td> 
+                                                    <td className='p-2 text-right'>{formatCurrency(sponsor.amount)}</td> 
+                                                    <td className='p-2'>{sponsor.reward}</td>
+                                                     <td className='p-2'>{sponsor.benefit}</td> 
+                                                     <td className="p-2 max-w-[150px] truncate" title={sponsor.about}>{sponsor.about}</td>
+                                                      </tr>))}
+                                                       </tbody>
+                                                        </table>
+                                                         </div> 
+                                                         
+                                                         </div>)}
                             </section>
 
                             {/* Communication Log Section */}

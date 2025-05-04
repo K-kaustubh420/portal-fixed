@@ -84,7 +84,7 @@ const Navbar = () => {
 
     const getUserInitial = () => user?.name ? user.name.charAt(0).toUpperCase() : '?';
 
-    const restrictedRolesForProposal = ['hod', 'dean', 'chair', 'vice_chair'];
+    const restrictedRolesForProposal = ['hod', 'dean', 'chair', 'vice_chair' ,'accounts'];
 
     // Loading state based on context's isLoading
     if (isLoading) {
