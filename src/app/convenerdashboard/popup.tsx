@@ -302,64 +302,66 @@ const Popup: React.FC<PopupProps> = ({ selectedProposal, closePopup, onProposalU
                                 </div>
                                 {(selectedProposal.detailedBudget && selectedProposal.detailedBudget.length > 0) &&
                                  (<div className="mt-4 pt-3 border-t border-gray-200">
-                                     <h4 className="text-md font-medium text-gray-700 mb-2 flex items-center gap-1"><FileText size={16} /> Estimated Budget Items</h4> 
-                                <div className="overflow-x-auto max-h-60 border rounded-md"> 
-                                    <table className="table table-sm w-full text-xs"> 
-                                    <thead className="sticky top-0 bg-gray-100 z-10">
-                                         <tr>
-                                         <th className="p-2">Category</th> 
-                                         <th className="p-2">Subcategory</th> 
-                                         <th className="p-2">Type</th>
-                                          {selectedProposal.detailedBudget.some(it => it.status) && <th className='p-2 text-center'>Status</th>} 
-                                          <th className='p-2 text-right'>Qty</th> 
-                                          <th className='p-2 text-right'>Cost/Unit</th>
-                                           <th className='p-2 text-right'>Total</th> 
-                                           </tr> </thead>
-                                            <tbody> {selectedProposal.detailedBudget.map((item, index) => (<tr key={item.id || index} className="hover:bg-gray-50 border-b last:border-b-0 border-gray-200"> 
-                                                <td className="p-2">{item.category}</td> 
-                                            <td className="p-2">{item.sub_category}</td> 
-                                            <td className="p-2">{item.type || '-'}</td>
-                                             {selectedProposal.detailedBudget.some(it => it.status) && 
-                                             <td className='p-2 text-center'>
-                                                <span className={`font-medium px-1.5 py-0.5 rounded-full text-[10px] ${item.status === 'actual' ? 'bg-cyan-100 text-cyan-700' : 'bg-orange-100 text-orange-700'}`}> {item.status || 'N/A'} </span> </td>} 
-                                                <td className='p-2 text-right'>{item.quantity}</td> 
-                                                <td className='p-2 text-right'>{formatCurrency(item.cost)}</td> 
-                                                <td className='p-2 text-right font-medium'>{formatCurrency(item.amount)}</td> </tr>))} 
-                                                </tbody>
-                                                 <tfoot className='sticky bottom-0'> <tr className='font-bold bg-gray-100'>
-                                                     <td colSpan={selectedProposal.detailedBudget.some(it => it.status) ? 5 : 4} className='p-2 text-right'>Total Estimate:</td> 
-                                                     <td className='p-2 text-right'>{formatCurrency(selectedProposal.estimatedBudget)}</td>
-                                                      </tr>
-                                                       </tfoot>
-                                                       </table>
-                                                        </div>
-                                                         </div>)}
+                                     <h4 className="text-md font-medium text-gray-700 mb-2 flex items-center gap-1"><FileText size={16} /> Estimated Budget Items</h4>
+                                    <div className="overflow-x-auto max-h-60 border rounded-md">
+                                        {/* HYDRATION FIX: Ensure no whitespace between table elements */}
+                                        <table className="table table-sm w-full text-xs">
+                                            <thead className="sticky top-0 bg-gray-100 z-10"><tr>
+                                                <th className="p-2">Category</th>
+                                                <th className="p-2">Subcategory</th>
+                                                <th className="p-2">Type</th>
+                                                {selectedProposal.detailedBudget.some(it => it.status) && <th className='p-2 text-center'>Status</th>}
+                                                <th className='p-2 text-right'>Qty</th>
+                                                <th className='p-2 text-right'>Cost/Unit</th>
+                                                <th className='p-2 text-right'>Total</th>
+                                            </tr></thead>
+                                            <tbody>
+                                                {selectedProposal.detailedBudget.map((item, index) => (<tr key={item.id || index} className="hover:bg-gray-50 border-b last:border-b-0 border-gray-200">
+                                                    <td className="p-2">{item.category}</td>
+                                                    <td className="p-2">{item.sub_category}</td>
+                                                    <td className="p-2">{item.type || '-'}</td>
+                                                    {selectedProposal.detailedBudget.some(it => it.status) &&
+                                                        <td className='p-2 text-center'>
+                                                            <span className={`font-medium px-1.5 py-0.5 rounded-full text-[10px] ${item.status === 'actual' ? 'bg-cyan-100 text-cyan-700' : 'bg-orange-100 text-orange-700'}`}> {item.status || 'N/A'} </span>
+                                                        </td>
+                                                    }
+                                                    <td className='p-2 text-right'>{item.quantity}</td>
+                                                    <td className='p-2 text-right'>{formatCurrency(item.cost)}</td>
+                                                    <td className='p-2 text-right font-medium'>{formatCurrency(item.amount)}</td>
+                                                </tr>))}
+                                            </tbody>
+                                            <tfoot className='sticky bottom-0'><tr className='font-bold bg-gray-100'>
+                                                <td colSpan={selectedProposal.detailedBudget.some(it => it.status) ? 5 : 4} className='p-2 text-right'>Total Estimate:</td>
+                                                <td className='p-2 text-right'>{formatCurrency(selectedProposal.estimatedBudget)}</td>
+                                            </tr></tfoot>
+                                        </table>
+                                    </div>
+                                </div>)}
                                 {(selectedProposal.sponsorshipDetailsRows && selectedProposal.sponsorshipDetailsRows.length > 0) && (<div className="mt-4 pt-3 border-t border-gray-200"> <h4 className="text-md font-medium text-gray-700 mb-2 flex items-center gap-1"><Award size={16} /> Sponsorship Details</h4>
-                                
-                                 <div className="overflow-x-auto max-h-60 border rounded-md">
-                                     <table className="table table-sm w-full text-xs"> 
-                                        <thead className="sticky top-0 bg-gray-100 z-10"> <tr>
-                                             <th className='p-2'>Sponsor/Category</th>
-                                              <th className='p-2'>Mode</th>
-                                               <th className='p-2 text-right'>Amount</th> 
-                                               <th className='p-2'>Reward</th> 
-                                               <th className='p-2'>Benefit</th> 
-                                               <th className='p-2'>About</th>
-                                                </tr>
-                                                 </thead>
-                                                  <tbody> {selectedProposal.sponsorshipDetailsRows.map((sponsor, index) => (<tr key={sponsor.id || index} className="hover:bg-gray-50 border-b last:border-b-0 border-gray-200"> 
-                                                    <td className='p-2'>{sponsor.category}</td> 
-                                                    <td className='p-2'>{sponsor.mode}</td> 
-                                                    <td className='p-2 text-right'>{formatCurrency(sponsor.amount)}</td> 
+                                    <div className="overflow-x-auto max-h-60 border rounded-md">
+                                        {/* HYDRATION FIX: Ensure no whitespace between table elements */}
+                                        <table className="table table-sm w-full text-xs">
+                                            <thead className="sticky top-0 bg-gray-100 z-10"><tr>
+                                                <th className='p-2'>Sponsor/Category</th>
+                                                <th className='p-2'>Mode</th>
+                                                <th className='p-2 text-right'>Amount</th>
+                                                <th className='p-2'>Reward</th>
+                                                <th className='p-2'>Benefit</th>
+                                                <th className='p-2'>About</th>
+                                            </tr></thead>
+                                            <tbody>
+                                                {selectedProposal.sponsorshipDetailsRows.map((sponsor, index) => (<tr key={sponsor.id || index} className="hover:bg-gray-50 border-b last:border-b-0 border-gray-200">
+                                                    <td className='p-2'>{sponsor.category}</td>
+                                                    <td className='p-2'>{sponsor.mode}</td>
+                                                    <td className='p-2 text-right'>{formatCurrency(sponsor.amount)}</td>
                                                     <td className='p-2'>{sponsor.reward}</td>
-                                                     <td className='p-2'>{sponsor.benefit}</td> 
-                                                     <td className="p-2 max-w-[150px] truncate" title={sponsor.about}>{sponsor.about}</td>
-                                                      </tr>))}
-                                                       </tbody>
-                                                        </table>
-                                                         </div> 
-                                                         
-                                                         </div>)}
+                                                    <td className='p-2'>{sponsor.benefit}</td>
+                                                    <td className="p-2 max-w-[150px] truncate" title={sponsor.about}>{sponsor.about}</td>
+                                                </tr>))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>)}
                             </section>
 
                             {/* Communication Log Section */}
@@ -382,17 +384,25 @@ const Popup: React.FC<PopupProps> = ({ selectedProposal, closePopup, onProposalU
 
                                 {/* Actual Bill Items Table */}
                                 <div className="overflow-x-auto border border-gray-300 rounded-lg bg-white shadow-sm">
+                                    {/* HYDRATION FIX: Ensure no whitespace between table elements */}
                                     <table className="table table-sm w-full table-auto">
-                                        <thead className="bg-gray-100">
-                                            <tr className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                                                <th className="p-2 w-8">#</th><th className="p-2 min-w-[240px]">Category / Subcategory <span className="text-red-500">*</span></th><th className="p-2 text-center min-w-[100px]">Type</th><th className="p-2 text-center w-20">Qty <span className="text-red-500">*</span></th><th className="p-2 text-center w-28">Cost/Unit (₹) <span className="text-red-500">*</span></th><th className="p-2 text-right w-28">Total (₹)</th><th className="p-2 min-w-[150px]">Notes/Ref</th><th className="p-2 text-center w-16">Action</th>
-                                            </tr>
-                                        </thead>
+                                        <thead className="bg-gray-100"><tr className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                                            <th className="p-2 w-8">#</th>
+                                            <th className="p-2 min-w-[240px]">Category / Subcategory <span className="text-red-500">*</span></th>
+                                            <th className="p-2 text-center min-w-[100px]">Type</th>
+                                            <th className="p-2 text-center w-20">Qty <span className="text-red-500">*</span></th>
+                                            <th className="p-2 text-center w-28">Cost/Unit (₹) <span className="text-red-500">*</span></th>
+                                            <th className="p-2 text-right w-28">Total (₹)</th>
+                                            <th className="p-2 min-w-[150px]">Notes/Ref</th>
+                                            <th className="p-2 text-center w-16">Action</th>
+                                        </tr></thead>
                                         <tbody>
-                                            {actualBillItems.length === 0 && !billFormErrors.global ? (<tr><td colSpan={8} className="text-center text-gray-500 p-4">Click 'Add Actual Expense Item' below to start, or edit the estimated items loaded.</td></tr>)
+                                            {actualBillItems.length === 0 && !billFormErrors.global
+                                                ? (<tr><td colSpan={8} className="text-center text-gray-500 p-4">Click 'Add Actual Expense Item' below to start, or edit the estimated items loaded.</td></tr>)
                                                 : (actualBillItems.map((row, index) => {
                                                     const uniqueDomIdSuffix = row.localId; const catError = billFormErrors[`bill_category_${uniqueDomIdSuffix}`]; const subCatError = billFormErrors[`bill_sub_category_${uniqueDomIdSuffix}`]; const qtyError = billFormErrors[`bill_quantity_${uniqueDomIdSuffix}`]; const costError = billFormErrors[`bill_cost_${uniqueDomIdSuffix}`]; const typeError = billFormErrors[`bill_type_${uniqueDomIdSuffix}`]; const notesError = billFormErrors[`bill_notes_${uniqueDomIdSuffix}`];
                                                     return (
+                                                        // HYDRATION FIX: Ensure no whitespace directly inside tr/td
                                                         <tr key={row.localId} className="border-b border-gray-200 last:border-b-0 hover:bg-gray-50/50 text-sm align-middle">
                                                             <td className="p-2 font-medium text-gray-500 text-center">{index + 1}</td>
                                                             <td className="p-2 space-y-1 align-top">
@@ -409,7 +419,14 @@ const Popup: React.FC<PopupProps> = ({ selectedProposal, closePopup, onProposalU
                                                     );
                                                 }))}
                                         </tbody>
-                                        {actualBillItems.length > 0 && (<tfoot><tr className="bg-gray-200 font-semibold text-gray-700 text-sm"><td colSpan={5} className="text-right p-3">Total Actual Bill Amount:</td><td className="text-right p-3">{formatCurrency(totalActualBillAmount)}</td><td colSpan={2} className="p-3"></td></tr></tfoot>)}
+                                        {actualBillItems.length > 0 && (
+                                            // HYDRATION FIX: Ensure no whitespace directly inside tfoot/tr/td
+                                            <tfoot><tr className="bg-gray-200 font-semibold text-gray-700 text-sm">
+                                                <td colSpan={5} className="text-right p-3">Total Actual Bill Amount:</td>
+                                                <td className="text-right p-3">{formatCurrency(totalActualBillAmount)}</td>
+                                                <td colSpan={2} className="p-3"></td>
+                                            </tr></tfoot>
+                                        )}
                                     </table>
                                 </div>
                                 <button type="button" onClick={addActualBillRow} className="btn btn-sm btn-outline btn-primary mt-4 rounded-full flex items-center gap-1 normal-case font-medium hover:bg-primary-focus"><PlusCircle size={16} /> Add New Expense Item</button>
@@ -447,4 +464,3 @@ const Popup: React.FC<PopupProps> = ({ selectedProposal, closePopup, onProposalU
 };
 
 export default Popup;
-

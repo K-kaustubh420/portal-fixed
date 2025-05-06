@@ -1,24 +1,25 @@
-// Overview.tsx (or ProposalOverviewTable.tsx)
 import React from 'react';
-
-// Interface for the props expected by THIS component
+import { LiaFilePdfSolid } from "react-icons/lia";
+// Interface for individual proposal data passed to this component
 interface OverviewProposal {
     id: string;
     title: string;
     start: string; // Event start date/time string from API
     end: string;   // Event end date/time string from API
     description: string;
-    status: string;           // <<< ADDED: Status field
+    status: string;           
     awaiting?: string | null; // Role awaiting approval
-    originalItem?: any;     // Original item for click handler
+    originalItem?: any;     // Original full proposal item for click handlers
 }
 
+// Interface for the props received by the Overview component
 interface OverviewProps {
-    eventProposals: OverviewProposal[]; // Use the updated interface
-    handleProposalClick: (proposalItem: any) => void; // Use 'any' or a more specific list item type
+    eventProposals: OverviewProposal[];
+    handleProposalClick: (proposalItem: any) => void; // Function to open the main details popup
+    onRequestTransportClick: (proposalId: string) => void; // Function to open the transport form popup
 }
 
-// Format awaiting role (e.g., 'vice_chair' → 'Vice Chair')
+// Helper function to format role strings (e.g., 'vice_chair' -> 'Vice Chair')
 const formatRole = (role: string | null | undefined): string => {
     if (!role) return '-';
     return role
@@ -26,86 +27,102 @@ const formatRole = (role: string | null | undefined): string => {
         .replace(/\b\w/g, l => l.toUpperCase()); // Capitalize first letter of each word
 };
 
-// Format date string (YYYY-MM-DD HH:MM:SS) to DD MMM YYYY
+
 const formatDate = (dateString: string): string => {
     if (!dateString) return 'N/A';
     try {
-        // Use a simple split if format is consistently YYYY-MM-DD...
-        const datePart = dateString.split(' ')[0];
+        const datePart = dateString.split(' ')[0]; // Get date part only
         const dateObj = new Date(datePart);
+        // Check if the date object is valid before formatting
         if (!isNaN(dateObj.getTime())) {
             return dateObj.toLocaleDateString("en-GB", {
                 day: "2-digit", month: "short", year: "numeric"
             });
         }
-         // Fallback for potentially different formats
-         return new Date(dateString).toLocaleDateString("en-GB", {
-             day: "2-digit", month: "short", year: "numeric"
-         });
+        // Fallback for potentially different formats or invalid dates
+        return 'Invalid Date';
     } catch (e) {
         console.error("Error formatting date:", dateString, e);
         return 'Invalid Date';
     }
 };
 
-// Helper to get status badge class
+// Helper function to determine the CSS class for status badges
 const getStatusClass = (status: string): string => {
     const lowerStatus = status?.toLowerCase() || 'unknown';
     switch (lowerStatus) {
         case 'approved': return 'bg-green-100 text-green-700';
-        case 'completed': return 'bg-purple-100 text-purple-700';
+        case 'completed': return 'bg-purple-100 text-purple-700'; // Assuming 'completed' is like approved for transport
         case 'pending': return 'bg-yellow-100 text-yellow-700';
         case 'rejected': return 'bg-red-100 text-red-700';
         case 'review': return 'bg-blue-100 text-blue-700';
-        default: return 'bg-gray-100 text-gray-700';
+        default: return 'bg-gray-100 text-gray-700'; // Default/Unknown status
     }
 };
 
-const Overview: React.FC<OverviewProps> = ({ eventProposals, handleProposalClick }) => {
+const Overview: React.FC<OverviewProps> = ({ eventProposals, handleProposalClick, onRequestTransportClick }) => {
     return (
         <div className="card shadow-md rounded-lg bg-white">
             <div className="card-body">
                 <h2 className="card-title text-lg font-bold text-gray-700 mb-4">All Proposals Overview</h2>
                 <div className="overflow-x-auto">
-                   
                     <table className="table table-compact w-full">
+                       
                         <thead>
-                            <tr className="bg-blue-100 text-blue-900 text-xs uppercase tracking-wider"> 
+                            <tr className="bg-blue-100 text-blue-900 text-xs uppercase tracking-wider">
                                 <th className="p-3">Title</th>
                                 <th className="p-3">Start Date</th>
                                 <th className="p-3">End Date</th>
-                                <th className="p-3">Description</th>
-                                <th className="p-3 text-center">Status</th> 
+        
+                                <th className="p-3 text-center">Status</th>
                                 <th className="p-3">Awaiting</th>
+                                <th className="p-3 text-center">Actions</th> 
                             </tr>
                         </thead>
+                       
                         <tbody>
                             {eventProposals.length > 0 ? (
                                 eventProposals.map((proposal) => (
                                     <tr
-                                        onClick={() => handleProposalClick(proposal.originalItem || proposal)}
                                         key={proposal.id}
-                                        className="cursor-pointer hover:bg-gray-100 text-sm border-b border-gray-200 last:border-b-0" // Added border
+                                        className="text-sm border-b border-gray-200 last:border-b-0" // Base row style
                                     >
-                                        <td className="p-2 font-medium text-gray-800">{proposal.title}</td>
-                                        <td className="p-2 text-gray-600">{formatDate(proposal.start)}</td>
-                                        <td className="p-2 text-gray-600">{formatDate(proposal.end)}</td>
-                                        <td className="p-2 text-gray-600 max-w-xs truncate" title={proposal.description}>
-                                            {proposal.description || '-'} {/* Show dash if empty */}
-                                        </td>
-                                        {/* <<< ADDED Status Cell >>> */}
-                                        <td className="p-2 text-center">
+                                       
+                                        <td onClick={() => handleProposalClick(proposal.originalItem || proposal)} className="p-2 font-medium text-gray-800 cursor-pointer hover:underline">{proposal.title}</td>
+                                        <td onClick={() => handleProposalClick(proposal.originalItem || proposal)} className="p-2 text-gray-600 cursor-pointer">{formatDate(proposal.start)}</td>
+                                        <td onClick={() => handleProposalClick(proposal.originalItem || proposal)} className="p-2 text-gray-600 cursor-pointer">{formatDate(proposal.end)}</td>
+                                       
+                                        <td onClick={() => handleProposalClick(proposal.originalItem || proposal)} className="p-2 text-center cursor-pointer">
                                             <span className={`font-medium px-2.5 py-0.5 rounded-full text-xs ${getStatusClass(proposal.status)}`}>
-                                                {formatRole(proposal.status)} 
+                                                {formatRole(proposal.status)}
                                             </span>
                                         </td>
-                                        <td className="p-2 text-gray-600 font-medium">{formatRole(proposal.awaiting)}</td>
+                                        <td onClick={() => handleProposalClick(proposal.originalItem || proposal)} className="p-2 text-gray-600 font-medium cursor-pointer">{formatRole(proposal.awaiting)}</td>
+                                       
+                                        <td className="p-2 text-center">
+                                         
+                                            {(proposal.status.toLowerCase() === 'approved' || proposal.status.toLowerCase() === 'completed') && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation(); // Prevent triggering row click
+                                                        onRequestTransportClick(proposal.id);
+                                                    }}
+                                                    className=" text-xl text-black bg-white "
+                                                    title="Request vehicle for this event"
+                                                >
+                                                   <LiaFilePdfSolid />
+                                                </button>
+                                            )}
+                                          
+                                        </td>
                                     </tr>
                                 ))
                             ) : (
                                 <tr>
-                                    
-                                    <td colSpan={6} className="text-center italic py-4 text-gray-500">No proposals submitted yet.</td>
+                                   
+                                    <td colSpan={6} className="text-center italic py-4 text-gray-500">
+                                        No proposals submitted yet.
+                                    </td>
                                 </tr>
                             )}
                         </tbody>
