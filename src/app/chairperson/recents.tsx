@@ -23,7 +23,7 @@ const Recents: React.FC<RecentsProps> = ({ recentAppliedProposals, handleProposa
                 <div className="overflow-x-auto">
                     <table className="table table-compact w-full">
                         <thead>
-                            <tr>
+                            <tr className='bg-blue-400 text-gray-700'>
                                 <th>Title</th>
                                 <th>Organizing Department</th>
                                 <th>Convener</th>

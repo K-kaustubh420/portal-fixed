@@ -22,7 +22,7 @@ export interface User {
     designation: string;
     dept_id: number;
 }
-export interface Proposal { id: string; title: string; status: 'Approved' | 'Pending' | 'Rejected' | 'Review'; date: string; organizer: string; convenerName: string; awaiting?: string | null; }
+export interface Proposal { id: string; title: string; status: 'Approved' | 'Pending' | 'Rejected' | 'Review'; date: string; organizer: string; convenerName: string; awaiting?: string | null; event?: string; }
 export interface UnifiedProposal {
     id: string;
     title: string;
@@ -62,6 +62,7 @@ export interface UnifiedProposal {
     chief?: User | null;
     user?: User | null;
     awaiting: string | null;
+    event?: string;
 }
 export interface ProposalListItem {
     id: number;
@@ -95,6 +96,7 @@ export interface ProposalListItem {
         dept_id: number;
         department?: { id: number; name: string; };
     };
+    event?: string; // <<< ADDED
 }
 export interface DetailedProposalResponse {
     proposal: ProposalListItem;
@@ -283,6 +285,7 @@ const ViceChairDashboard: React.FC = () => {
             eventDate: p.start || '',
             eventDescription: p.description || '',
             eventTitle: p.title || 'Untitled Proposal',
+            event: p.event, // <<< ADDED
             cost: calculatedCost,
             detailedBudget: [],
             estimatedBudget: calculatedCost,
@@ -362,6 +365,7 @@ const ViceChairDashboard: React.FC = () => {
             eventDate: p.start || '',
             eventDescription: p.description || '',
             eventTitle: p.title || 'Untitled Proposal',
+            event: p.event, // <<< ADDED
             cost: calculatedCost,
             detailedBudget: detailData.items || [],
             estimatedBudget: calculatedCost,
@@ -392,6 +396,7 @@ const ViceChairDashboard: React.FC = () => {
         organizer: p.organizer,
         convenerName: p.convenerName,
         awaiting: p.awaiting,
+        event: p.event,
     }), []);
 
     const handleProposalClick = useCallback(async (proposal: Proposal) => {
@@ -444,7 +449,7 @@ const ViceChairDashboard: React.FC = () => {
     return (
         <div className="vice-chair-dashboard p-4 md:p-6 space-y-6 bg-gray-50 text-gray-900 min-h-screen">
             <h1 className="text-2xl md:text-3xl font-bold text-slate-800 mb-6 border-b pb-3">
-                {capitalize(expectedUserRole)}/ Associate Chair Dashboard
+             Associate Chair Dashboard
             </h1>
 
             {dashboardState.loading && (

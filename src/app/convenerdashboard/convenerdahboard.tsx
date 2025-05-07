@@ -11,7 +11,7 @@ import { useAuth } from '@/context/AuthContext';
 import { User } from '@/lib/users';
 
 
-interface ProposalListItem { id: number; user_id: number; title: string; description: string; start: string; end: string; category: string; status: string; awaiting: string | null; created_at: string; updated_at: string; user?: { id: number; name: string; email: string; department?: string; designation?: string; }; payment?: number;} // Added payment to ProposalListItem
+interface ProposalListItem { id: number; user_id: number; event: string; title: string; description: string; start: string; end: string; category: string; status: string; awaiting: string | null; created_at: string; updated_at: string; user?: { id: number; name: string; email: string; department?: string; designation?: string; }; payment?: number;} // Added payment to ProposalListItem
 
 // --- Nested interfaces for DetailedProposal ---
 interface DetailedProposalUser { id: number; name: string; email: string; department?: string; designation?: string; role?: string; }
@@ -355,7 +355,8 @@ const ConvenerDashboard: React.FC = () => {
                             awaiting: p.awaiting,
                             originalItem: p,
                             status: p.status,
-                            payment:p.payment
+                            payment:p.payment,
+                            event:p.event
 
                         }))}
                         handleProposalClick={handleListItemClick} // Opens detail popup

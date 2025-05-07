@@ -8,6 +8,7 @@ interface Proposal {
     status: 'Approved' | 'Pending' | 'Rejected' | 'Review'; // Changed from string
     convenerName: string;
     awaiting?: string | null;
+    event?: string| null; // Original item for click handler
 }
 
 interface ProposalOverviewTableProps {
@@ -39,6 +40,7 @@ const ProposalOverviewTable: React.FC<ProposalOverviewTableProps> = ({ eventProp
                                 <th>Date</th>
                                 <th>Status</th>
                                 <th>Awaiting</th>
+                                <th>Event status</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -55,6 +57,20 @@ const ProposalOverviewTable: React.FC<ProposalOverviewTableProps> = ({ eventProp
                                             </div>
                                         </td>
                                         <td>{formatAwaiting(proposal.awaiting)}</td>
+                                        <td className="p-2 cursor-pointer">
+  <span
+    className={`px-2 py-1 rounded-full text-sm font-medium ${
+      proposal.event === 'rescheduled'
+        ? 'bg-yellow-100 text-yellow-800'
+        : proposal.event === 'cancelled'
+        ? 'bg-red-100 text-red-800'
+        : 'bg-gray-100 text-gray-600'
+    }`}
+  >
+    {proposal.event}
+  </span>
+</td>
+
                                     </tr>
                                 ))
                             ) : (

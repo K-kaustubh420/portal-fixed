@@ -10,7 +10,8 @@ interface OverviewProposal {
     description: string;
     status: string;           // <<< ADDED: Status field
     awaiting?: string | null; // Role awaiting approval
-    originalItem?: any;     // Original item for click handler
+    originalItem?: any;
+    event?:string;     // Original item for click handler
 }
 
 interface OverviewProps {
@@ -77,6 +78,7 @@ const Overview: React.FC<OverviewProps> = ({ eventProposals, handleProposalClick
                                 <th className="p-3">Description</th>
                                 <th className="p-3 text-center">Status</th> 
                                 <th className="p-3">Awaiting</th>
+                                <th className="p-3">Event status</th> {/* Added Event column */}
                             </tr>
                         </thead>
                         <tbody>
@@ -100,6 +102,20 @@ const Overview: React.FC<OverviewProps> = ({ eventProposals, handleProposalClick
                                             </span>
                                         </td>
                                         <td className="p-2 text-gray-600 font-medium">{formatRole(proposal.awaiting)}</td>
+                                        <td className="p-2 cursor-pointer">
+  <span
+    className={`px-2 py-1 rounded-full text-sm font-medium ${
+      proposal.event === 'rescheduled'
+        ? 'bg-yellow-100 text-yellow-800'
+        : proposal.event === 'cancelled'
+        ? 'bg-red-100 text-red-800'
+        : 'bg-gray-100 text-gray-600'
+    }`}
+  >
+    {proposal.event}
+  </span>
+</td>
+
                                     </tr>
                                 ))
                             ) : (

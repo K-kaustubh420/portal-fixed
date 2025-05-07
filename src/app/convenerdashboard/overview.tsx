@@ -10,7 +10,8 @@ interface OverviewProposal {
     status: string;
     awaiting?: string | null; // Role awaiting approval
     originalItem?: any;     // Original full proposal item for click handlers
-    payment?: number;        // Bill settlement status: 0 (pending), 1 (completed)
+    payment?: number;   
+    event?: string;     // Bill settlement status: 0 (pending), 1 (completed)
 }
 
 // Interface for the props received by the Overview component
@@ -65,7 +66,7 @@ const getBillSettlementStatus = (status: string, payment: number | undefined): s
     const lowerStatus = status?.toLowerCase() || 'unknown';
 
     if (lowerStatus === 'pending') {
-        return 'Pending';
+        return '-';
     }
 
     if (lowerStatus === 'approved') {
@@ -113,6 +114,7 @@ const Overview: React.FC<OverviewProps> = ({ eventProposals, handleProposalClick
                                 <th className="p-3">End Date</th>
                                 <th className="p-3 text-center">Status</th>
                                 <th className="p-3">Awaiting</th>
+                                <th className='p-3'>Event status</th>
                                 <th className="p-3 text-center">Bill Settlement</th>{/* New Column */}
                                 <th className="p-3 text-center">Actions</th>
                             </tr>
@@ -134,7 +136,20 @@ const Overview: React.FC<OverviewProps> = ({ eventProposals, handleProposalClick
                                             </span>
                                         </td>
                                         <td onClick={() => handleProposalClick(proposal.originalItem || proposal)} className="p-2 text-gray-600 font-medium cursor-pointer">{formatRole(proposal.awaiting)}</td>
-                                    
+                                        <td className="p-2 cursor-pointer">
+  <span
+    className={`px-2 py-1 rounded-full text-sm font-medium ${
+      proposal.event === 'rescheduled'
+        ? 'bg-yellow-100 text-yellow-800'
+        : proposal.event === 'cancelled'
+        ? 'bg-red-100 text-red-800'
+        : 'bg-gray-100 text-gray-600'
+    }`}
+  >
+    {proposal.event}
+  </span>
+</td>
+
                                         <td className="p-2 text-center">
                                             <span className={`font-medium px-2.5 py-0.5 rounded-full text-xs ${getBillSettlementClass(proposal.status, proposal.payment)}`}>
                                                 {getBillSettlementStatus(proposal.status, proposal.payment)}

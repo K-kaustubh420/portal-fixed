@@ -12,7 +12,7 @@ import { useAuth } from '@/context/AuthContext';
 
 // --- Interfaces ---
 interface HODProposalListItem {
-    id: number; user_id: number; title: string; description: string; start: string;
+    id: number; user_id: number; title: string; description: string; start: string; event: string;  // Added 'event' field
     end: string; category: string; status: string; awaiting: string | null;
     created_at: string; updated_at: string;
     user?: { id: number; name: string; email: string; department?: string; designation?: string; };
@@ -234,7 +234,7 @@ const HODDashboard: React.FC = () => {
                  </div>
                  <div className="lg:col-span-2 space-y-6">
                      <Overview
-                         eventProposals={validProposals.map(p => ({ id: String(p.id), title: p.title || 'N/A', start: p.start, end: p.end, description: p.description?.substring(0, 100) + (p.description && p.description.length > 100 ? '...' : '') || '-', awaiting: p.awaiting, status: p.status, originalItem: p }))}
+                         eventProposals={validProposals.map(p => ({ id: String(p.id), title: p.title || 'N/A', start: p.start, end: p.end,event: p.event, description: p.description?.substring(0, 100) + (p.description && p.description.length > 100 ? '...' : '') || '-', awaiting: p.awaiting, status: p.status, originalItem: p }))}
                          handleProposalClick={handleListItemClick}
                      />
                  </div>

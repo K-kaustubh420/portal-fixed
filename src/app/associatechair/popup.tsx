@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { format, isValid } from 'date-fns';
 import { X } from 'lucide-react';
 import axios, { AxiosError } from 'axios';
+import { User } from './ViceDashboard'; //
 
 // Define interfaces (assumed to be in ViceDashboard or similar)
 interface Item {
@@ -24,7 +25,7 @@ interface Sponsor {
 
 interface Message {
   message: string;
-  created_at: string;
+  created_at: string | null;
 }
 
 interface UnifiedProposal {
@@ -47,23 +48,23 @@ interface UnifiedProposal {
   detailedBudget: Item[];
   estimatedBudget: number;
   email: string;
-  location: string;
-  chiefGuestName: string;
-  chiefGuestDesignation: string;
-  designation: string;
-  durationEvent: string;
-  fundingDetails: Record<string, any>;
-  organizingDepartment: string;
-  department_name: string;
-  pastEvents: string;
-  proposalStatus: string;
-  relevantDetails: string;
+  location?: string;
+  chiefGuestName?: string;
+  chiefGuestDesignation?: string;
+  designation?: string;
+  durationEvent?: string;
+  fundingDetails?: Record<string, any>;
+  organizingDepartment?: string;
+  department_name?: string;
+  pastEvents?: string | string[] | null;
+  proposalStatus?: string;
+  relevantDetails?: string | null;
   sponsorshipDetails: Sponsor[];
-  rejectionMessage: string;
-  tags: string[];
+  rejectionMessage?: string;
+  tags?: string[];
   messages: Message[];
-  chief: any;
-  user: any;
+  chief? : User | null;
+  user? : User | null;
   awaiting: string | null;
 }
 
@@ -699,7 +700,7 @@ const Popup: React.FC<PopupProps> = ({
               <textarea
                 id="rejectionMessage"
                 rows={2}
-                className="textarea textarea-bordered w-full text-sm"
+                className="textarea textarea-bordered bg-white w-full text-sm"
                 placeholder="Enter rejection reason..."
                 value={clarificationInput}
                 onChange={(e) => setClarificationInput(e.target.value)}
