@@ -1,5 +1,3 @@
-"use client";
-
 import React, { useState, useEffect, useCallback } from 'react';
 import axios, { AxiosError } from 'axios';
 import { useRouter } from 'next/navigation';
@@ -13,7 +11,8 @@ import { useAuth } from '@/context/AuthContext';
 import { User } from '@/lib/users';
 
 
-interface ProposalListItem { id: number; user_id: number; title: string; description: string; start: string; end: string; category: string; status: string; awaiting: string | null; created_at: string; updated_at: string; user?: { id: number; name: string; email: string; department?: string; designation?: string; }; }
+interface ProposalListItem { id: number; user_id: number; title: string; description: string; start: string; end: string; category: string; status: string; awaiting: string | null; created_at: string; updated_at: string; user?: { id: number; name: string; email: string; department?: string; designation?: string; }; payment?: number;} // Added payment to ProposalListItem
+
 // --- Nested interfaces for DetailedProposal ---
 interface DetailedProposalUser { id: number; name: string; email: string; department?: string; designation?: string; role?: string; }
 interface DetailedProposalChiefPivot { proposal_id: number; chief_id: number; reason: string | null; hotel_name: string | null; hotel_address: string | null; hotel_duration: number | null; hotel_type: 'srm' | 'others' | null; travel_name: string | null; travel_address: string | null; travel_duration: number | null; travel_type: 'srm' | 'others' | null; created_at: string; updated_at: string; }
@@ -24,7 +23,7 @@ interface DetailedProposalMessageUser { id: number; name: string; email: string;
 interface DetailedProposalMessage { id: number; proposal_id: number; user_id: number; message: string; created_at: string; updated_at: string; user: DetailedProposalMessageUser; } // <-- Matches API response
 // Interface for the main DETAILED proposal from /api/faculty/proposals/{id}
 interface DetailedProposal { id: number; user_id: number; title: string; description: string; start: string; end: string; category: string; past: string | null; other: string | null; status: string; participant_expected: number | null; participant_categories: string | null; fund_uni: number | null; fund_registration: number | null; fund_sponsor: number | null; fund_others: number | null; awaiting: string | null; created_at: string; updated_at: string; user: DetailedProposalUser; // Submitter details
-    chiefs: DetailedProposalChief[] | null; items: DetailedProposalItem[]; sponsors: DetailedProposalSponsor[]; messages: DetailedProposalMessage[]; // <-- Updated to use the detailed message structure
+    chiefs: DetailedProposalChief[] | null; items: DetailedProposalItem[]; sponsors: DetailedProposalSponsor[]; messages: DetailedProposalMessage[]; // <-- Updated to use the detailed message structure; payment?: number;
 }
 interface PopupProposal { id: string; title: string; description: string; category: string; status: string; eventStartDate: string; eventEndDate: string; submissionTimestamp: string; date: string; // Alias
     // Convener/Organizer Details
@@ -99,7 +98,9 @@ const ConvenerDashboard: React.FC = () => {
                 const cleanedData = proposalsData.map(p => ({
                     ...p,
                     status: p.status?.toLowerCase() || 'unknown',
-                    user: p.user || { id: -1, name: 'Unknown User', email: 'N/A' }
+                    user: p.user || { id: -1, name: 'Unknown User', email: 'N/A' },
+                     payment: p.payment, // Keep the payment from the API response
+
                 }));
                 setProposals(cleanedData);
             } else {
@@ -353,7 +354,9 @@ const ConvenerDashboard: React.FC = () => {
                             description: p.description?.substring(0, 100) + (p.description && p.description.length > 100 ? '...' : '') || '-',
                             awaiting: p.awaiting,
                             originalItem: p,
-                            status: p.status
+                            status: p.status,
+                            payment:p.payment
+
                         }))}
                         handleProposalClick={handleListItemClick} // Opens detail popup
                         onRequestTransportClick={openTransportPopup} // <-- Pass handler to Overview
