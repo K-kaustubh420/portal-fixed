@@ -19,7 +19,7 @@ const AwaitingAtU: React.FC<AwaitingAtUProps> = ({ proposals, userRole }) => {
     try {
       const dateObj = new Date(dateString);
       if (isValid(dateObj)) return format(dateObj, 'dd-MM-yyyy');
-    } catch (e) {
+    } catch {
       /* ignore */
     }
     return 'Invalid Date';

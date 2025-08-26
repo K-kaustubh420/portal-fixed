@@ -108,7 +108,6 @@ const CalendarView: React.FC<CalendarViewProps> = ({ proposals }) => {
                     onProposalUpdated={() => { }}
                     authToken={null}
                     apiBaseUrl=""
-                    userRole=""
                 />
             )}
         </div>

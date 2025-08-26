@@ -5,7 +5,7 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import listPlugin from '@fullcalendar/list';
-import { EventInput } from '@fullcalendar/core';
+import { EventInput, EventClickArg } from '@fullcalendar/core';
 import Popup from './popup';
 import { UnifiedProposal } from './ViceDashboard';
 
@@ -27,7 +27,7 @@ const NoProposalsComponent = () => (
     </div>
 );
 
-interface Proposal extends UnifiedProposal {}
+type Proposal = UnifiedProposal;
 
 interface CalendarViewProps {
     proposals: Proposal[];
@@ -60,7 +60,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ proposals }) => {
         };
     });
 
-    const handleEventClick = (clickInfo: any) => {
+    const handleEventClick = (clickInfo: EventClickArg) => {
         setSelectedEvent(clickInfo.event.extendedProps as Proposal);
     };
 

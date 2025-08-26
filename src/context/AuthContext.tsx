@@ -88,7 +88,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
 
         try {
-            const userResponse = await fetch("https://pmspreview-htfbhkdnffcpf5dz.centralindia-01.azurewebsites.net/api/user", {
+            const BaseUril = process.env.NEXT_PUBLIC_API_BASE_URL!; // ! ensures TS knows it exists
+            const userResponse = await fetch(`${BaseUril}/api/user`, {
                 method: "GET",
                 headers: {
                     "Authorization": `Bearer ${newToken}`,

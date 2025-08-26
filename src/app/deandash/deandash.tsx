@@ -210,7 +210,8 @@ const DeanDashboard: React.FC = () => {
         }
         setLoading(true);
         setError(null);
-        const proposalEndpoint = "https://pmspreview-htfbhkdnffcpf5dz.centralindia-01.azurewebsites.net/api/dean/proposals";
+        const Baseuril =process.env.NEXT_PUBLIC_API_BASE_URL;
+        const proposalEndpoint = `${Baseuril}/api/dean/proposals`;
         try {
             const response = await axios.get<ApiResponse>(proposalEndpoint, {
                 headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
@@ -264,7 +265,8 @@ const DeanDashboard: React.FC = () => {
         }
         setIsPopupLoading(true);
         setFetchError(null);
-        const detailEndpoint = `https://pmspreview-htfbhkdnffcpf5dz.centralindia-01.azurewebsites.net/api/dean/proposals/${proposalId}`;
+        const Baseuril = process.env.NEXT_PUBLIC_API_BASE_URL;
+        const detailEndpoint = `${Baseuril}/api/dean/proposals/${proposalId}`;
         try {
             console.log('DeanDashboard: Fetching proposal detail:', { proposalId, detailEndpoint });
             const response = await axios.get<DetailedProposalResponse>(detailEndpoint, {
@@ -299,8 +301,7 @@ const DeanDashboard: React.FC = () => {
         } finally {
             setIsPopupLoading(false);
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [token, user, logout]); // mapDetailResponseToUnifiedProposal is stable due to useCallback and not included here
+    }, [token, user, logout]);
 
     const calculateStats = (proposalList: ProposalListItem[]) => {
         if (!Array.isArray(proposalList)) {
@@ -430,8 +431,7 @@ const DeanDashboard: React.FC = () => {
                 event: null // MODIFICATION: Added event field
             };
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []); // Assuming capitalize is stable and not dependent on component state/props
+    }, []);
 
     // Maps a Simplified UnifiedProposal (used for overview/recents)
     const mapUnifiedToSimplifiedProposal = useCallback((p: UnifiedProposal): Proposal => ({
@@ -533,8 +533,7 @@ const DeanDashboard: React.FC = () => {
             awaiting: p.awaiting || null,
             event: p.event || null // MODIFICATION: Populating event field
         };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []); // Assuming capitalize is stable
+    }, []);
 
 
     const handleProposalClick = useCallback(async (proposal: Proposal) => {
@@ -605,7 +604,7 @@ const DeanDashboard: React.FC = () => {
                         <BillStatus
                             proposals={proposalsForView} // Using simplified view models here
                             authToken={token}
-                            apiBaseUrl="https://pmspreview-htfbhkdnffcpf5dz.centralindia-01.azurewebsites.net"
+                            apiBaseUrl={process.env.NEXT_PUBLIC_API_BASE_URL!}
                         />
                         <AwaitingAtU
                              proposals={unifiedProposals.filter(p => p.status === 'Pending' && p.awaiting !== user?.role?.toLowerCase())} // Filter to show proposals awaiting others
@@ -632,7 +631,7 @@ const DeanDashboard: React.FC = () => {
                 closePopup={closePopup}
                 onProposalUpdated={() => fetchProposals()} // Pass fetchProposals to refresh data after action
                 authToken={token}
-                apiBaseUrl="https://pmspreview-htfbhkdnffcpf5dz.centralindia-01.azurewebsites.net"
+                apiBaseUrl= {process.env.NEXT_PUBLIC_API_BASE_URL!}
                 fetchError={fetchError} // Pass error from fetchProposalDetail
             />
 

@@ -49,7 +49,7 @@ interface PopupProposal {
 }
 // --- End Interfaces ---
 
-const API_BASE_URL = "https://pmspreview-htfbhkdnffcpf5dz.centralindia-01.azurewebsites.net";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
 const HODDashboard: React.FC = () => {
     const [proposals, setProposals] = useState<HODProposalListItem[]>([]);

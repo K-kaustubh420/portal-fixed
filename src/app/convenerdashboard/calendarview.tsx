@@ -138,6 +138,35 @@ const CalendarView: React.FC<CalendarViewProps> = ({ proposals }) => {
         setSelectedEvent(proposalData);
     };
 
+    // Map the selected calendar proposal to the shape expected by Popup
+    const mapCalendarToPopupProposal = (p: CalendarProposal) => ({
+        id: String(p.id),
+        title: p.title,
+        description: p.description || '',
+        category: p.category || 'Uncategorized',
+        status: typeof p.status === 'string' ? p.status : 'pending',
+        eventStartDate: p.eventStartDate || p.eventDate || '',
+        eventEndDate: p.eventEndDate || p.eventDate || '',
+        submissionTimestamp: p.submissionTimestamp || '',
+        date: p.date || p.eventDate || '',
+        organizer: p.organizingDepartment || p.organizer || '',
+        convenerName: p.convenerName || '',
+        convenerEmail: p.convenerEmail,
+        convenerDesignation: p.designation,
+        participantExpected: p.participant_expected ?? null,
+        participantCategories: p.participant_categories ?? null,
+        chiefGuestName: p.chiefGuestName,
+        chiefGuestDesignation: p.chiefGuestDesignation,
+        estimatedBudget: p.estimatedBudget,
+        fundingDetails: p.fundingDetails || {},
+        detailedBudget: Array.isArray(p.detailedBudget) ? p.detailedBudget : [],
+        sponsorshipDetailsRows: Array.isArray(p.sponsorshipDetailsRows) ? p.sponsorshipDetailsRows : [],
+        pastEvents: p.pastEvents ?? null,
+        relevantDetails: p.relevantDetails ?? null,
+        awaiting: p.awaiting ?? null,
+        messages: [],
+    });
+
     // Close the popup
     const closePopup = () => {
         setSelectedEvent(null);
@@ -191,7 +220,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ proposals }) => {
                 <Popup
                     // Ensure the Popup component's expected prop name matches 'selectedProposal'
                     // And that the 'selectedEvent' object structure matches Popup's expected interface
-                    selectedProposal={selectedEvent}
+                    selectedProposal={mapCalendarToPopupProposal(selectedEvent)}
                     closePopup={closePopup}
                     // Pass a function if Popup needs to trigger a refresh after an update
                     onProposalUpdated={() => {
@@ -200,6 +229,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({ proposals }) => {
                         // For now, just closing the popup.
                         closePopup();
                      }}
+                    token={null}
+                    apiBaseUrl=""
                 />
             )}
         </div>

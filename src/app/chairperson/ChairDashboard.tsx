@@ -248,8 +248,7 @@ const ChairDashboard: React.FC = () => {
         }
     // Add mapDetailResponseToUnifiedProposal to dependency array if it's defined via useCallback outside.
     // For now, assuming it's available in scope.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [token, user, logout, apiBaseUrl, expectedUserRole, apiRoleSegment /*, mapDetailResponseToUnifiedProposal */]);
+    }, [token, user, logout, apiBaseUrl, expectedUserRole, apiRoleSegment]);
 
 
     const mapListItemToUnifiedProposal = useCallback((p: ProposalListItem): UnifiedProposal => {

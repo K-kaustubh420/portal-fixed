@@ -37,7 +37,8 @@ const Navbar = () => {
         setIsSubmitting(true);
 
         try {
-            const response = await fetch("https://pmspreview-htfbhkdnffcpf5dz.centralindia-01.azurewebsites.net/api/login", {
+            const apiBaseUril = process.env.NEXT_PUBLIC_API_BASE_URL!;
+            const response = await fetch(`${apiBaseUril}/api/login`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json", "Accept": "application/json" },
                 body: JSON.stringify({ email, password }),

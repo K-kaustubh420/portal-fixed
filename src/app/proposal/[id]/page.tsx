@@ -98,7 +98,7 @@ interface FetchedProposalData {
 
 
 // --- Constants (Keep EVENT_CATEGORIES, participantCategories, etc.) ---
-const API_BASE_URL = 'https://pmspreview-htfbhkdnffcpf5dz.centralindia-01.azurewebsites.net';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 const HOTEL_TYPES = ['srm', 'others'] as const;
 const TRAVEL_TYPES = ['srm', 'others'] as const;
 const EVENT_CATEGORIES = [ "conference_national", "conference_international", "fdp", "workshop", "winter_summer_school", "mdp_pdp", "student_programme", "alumni_programme", "outreach_programme", "value_added_course", "association_activity", "counselling_activity", "commemoration_day", "upskilling_non_teaching", "industrial_conclave", "patent_commercialisation", "lecture_series_industry_expert" ] as const;

@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { Suspense } from 'react'
 import Proposal from './proposal'
 import Navbar from '@/components/Navbar'
 const page = () => {
@@ -7,7 +7,9 @@ const page = () => {
       <div> 
     <Navbar/>
     </div>
-      <Proposal/>
+      <Suspense fallback={<div className="p-6 text-gray-600">Loading proposal...</div>}>
+        <Proposal/>
+      </Suspense>
     </div> 
   )
 }

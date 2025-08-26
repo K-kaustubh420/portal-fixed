@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react'; // Added useMemo
 import { ClockIcon, CurrencyRupeeIcon, ChartBarIcon } from '@heroicons/react/24/outline';
-import { Loader2, CheckCircle } from 'lucide-react'; // Added for dashboard loading state
+import { Loader2 } from 'lucide-react'; // Added for dashboard loading state
 import { useAuth } from '@/context/AuthContext';
 import Stats from './Statsbar'; // Or './stats' - ensure filename matches
 import ProposalPopup from './popup'; // <--- IMPORT THE POPUP COMPONENT (ensure path is correct, e.g., ./ProposalPopup.tsx)
@@ -49,13 +49,13 @@ const AccountsDashboard: React.FC = () => {
             setIsLoadingData(true);
             setError(null);
             try {
-                const response = await fetch('https://pmspreview-htfbhkdnffcpf5dz.centralindia-01.azurewebsites.net/api/accounts/proposals/', {
+                const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/accounts/proposals/`, {
                     method: 'GET',
                     headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json', }
                 });
                 if (!response.ok) {
                     let errorMsg = `Failed to fetch data. Status: ${response.status}`;
-                    try { const errorData = await response.json(); errorMsg = errorData.message || errorMsg; } catch (e) { }
+                    try { const errorData = await response.json(); errorMsg = (errorData as { message?: string })?.message || errorMsg; } catch { }
                     throw new Error(errorMsg);
                 }
                 const data: Proposal[] = await response.json();
@@ -66,9 +66,10 @@ const AccountsDashboard: React.FC = () => {
                 data.forEach(p => initialStatus[p.id] = 'idle');
                 setSettlementStatus(initialStatus);
 
-            } catch (err: any) {
+            } catch (err: unknown) {
                 console.error("Error fetching pending settlements:", err);
-                setError(err.message || 'An unexpected error occurred.');
+                const message = err instanceof Error ? err.message : 'An unexpected error occurred.';
+                setError(message);
                 setProposals([]);
             } finally { setIsLoadingData(false); }
         };
@@ -134,7 +135,7 @@ const AccountsDashboard: React.FC = () => {
         setSettlementError(null);
 
         try {
-            const response = await fetch(`https://pmspreview-htfbhkdnffcpf5dz.centralindia-01.azurewebsites.net/api/accounts/proposals/${proposalId}`, {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/accounts/proposals/${proposalId}`, {
                 method: "PUT",
                 headers: {
                     "Authorization": `Bearer ${token}`,
@@ -146,7 +147,7 @@ const AccountsDashboard: React.FC = () => {
 
             if (!response.ok) {
                 let errorMsg = `Settlement failed! Status: ${response.status}`;
-                try { const errorData = await response.json(); errorMsg = errorData.message || errorMsg; } catch (e) { }
+                try { const errorData = await response.json(); errorMsg = (errorData as { message?: string })?.message || errorMsg; } catch { }
                 throw new Error(errorMsg);
             }
 
@@ -161,9 +162,9 @@ const AccountsDashboard: React.FC = () => {
             // Update selected proposal so popup shows settled state
              setSelectedProposal(prev => prev ? { ...prev, isSettled: true } : null);
 
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error("AccountsDashboard: Error settling bill:", err);
-            const errorMsg = err.message || "An unexpected error occurred during settlement.";
+            const errorMsg = err instanceof Error ? err.message : "An unexpected error occurred during settlement.";
             setSettlementError(errorMsg);
             setSettlementStatus(prev => ({ ...prev, [proposalId]: 'error' }));
         }
