@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios, { AxiosError } from 'axios';
 import { useRouter } from 'next/navigation';
+// --- ADDED IMPORTS ---
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+// --- END ADDED IMPORTS ---
 import Overview from './overview'; // Adjust path if needed
 import Stats from './stats';       // Adjust path if needed
 import Popup from './popup';       // Adjust path if needed (Details Popup)
@@ -316,9 +320,57 @@ const ConvenerDashboard: React.FC = () => {
         }
     };
 
+    // --- ADDED PDF FUNCTION ---
+    const generateOverviewPdf = () => {
+        if (!validProposals.length) {
+            alert("No proposals available to generate a report.");
+            return;
+        }
+
+        const doc = new jsPDF();
+        const tableColumns = ["ID", "Title", "Event Type", "Status", "Start Date", "Awaiting"];
+
+        // Map data and ensure all values are strings to prevent type errors
+        const tableRows = validProposals.map(p => [
+            String(p.id),
+            p.title || 'N/A',
+            p.event || 'N/A',
+            p.status ? (p.status.charAt(0).toUpperCase() + p.status.slice(1)) : 'Unknown',
+            new Date(p.start).toLocaleDateString(),
+            p.awaiting || '-',
+        ]);
+
+        doc.setFontSize(18);
+        doc.text("Proposals Overview Report", 14, 22);
+
+        autoTable(doc, {
+            startY: 30,
+            head: [tableColumns],
+            body: tableRows,
+            theme: 'striped',
+            headStyles: { fillColor: [22, 160, 133] },
+        });
+
+        doc.save('proposals_overview.pdf');
+    };
+    // --- END ADDED PDF FUNCTION ---
+
     // --- Main Render ---
     return (
         <div className="convener-dashboard p-4 md:p-6 space-y-6 bg-gray-50 text-black min-h-screen">
+            {/* --- ADDED HEADER AND BUTTON --- */}
+            <div className="flex justify-between items-center">
+                <h1 className="text-2xl font-bold text-gray-800">Convener Dashboard</h1>
+                <button
+                    onClick={generateOverviewPdf}
+                    className="btn btn-outline btn-primary"
+                >
+                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                    Download Overview
+                </button>
+            </div>
+            {/* --- END ADDED HEADER AND BUTTON --- */}
+            
             {/* Stats Component */}
             <Stats
                 totalProposalsCount={totalCount}
