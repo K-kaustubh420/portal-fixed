@@ -209,6 +209,7 @@ const PhotoUploadModal: React.FC<{
 
 // --- Main Popup Component ---
 const Popup: React.FC<PopupProps> = ({ selectedProposal, closePopup, onProposalUpdated, token, apiBaseUrl }) => {
+    console.log(selectedProposal);
     const router = useRouter();
     const actualBillBaseId = useId();
 

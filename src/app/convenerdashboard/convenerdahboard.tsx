@@ -167,8 +167,8 @@ const ConvenerDashboard: React.FC = () => {
                 try { const parsed = JSON.parse(categoriesString); return Array.isArray(parsed) ? parsed.map(String) : null; }
                 catch (e) { console.error("Error parsing participant_categories:", categoriesString, e); return null; }
             };
+            console.log("USERNAME IS ", user,  user.name)
             const participantCats = parseParticipantCategories(apiData.participant_categories);
-
             const detailedDataForPopup: PopupProposal = {
                 id: String(apiData.id),
                 title: apiData.title || 'N/A',
@@ -179,10 +179,10 @@ const ConvenerDashboard: React.FC = () => {
                 eventEndDate: apiData.end,
                 submissionTimestamp: apiData.created_at,
                 date: apiData.start,
-                organizer: submitter.department || 'N/A',
-                convenerName: submitter.name || `User ID: ${apiData.user_id}`,
+                organizer: 'Computing Technologies',
+                convenerName: user.name,
                 convenerEmail: submitter.email || undefined,
-                convenerDesignation: submitter.designation || undefined,
+                convenerDesignation: user.designation || undefined,
                 participantExpected: apiData.participant_expected,
                 participantCategories: participantCats,
                 chiefGuestName: primaryChief?.name,

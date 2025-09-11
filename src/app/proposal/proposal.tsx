@@ -417,8 +417,8 @@ export default function EventProposalForm() {
         console.log("Submitting Proposal Data:", JSON.stringify(proposalData, null, 2));
 
         const apiEndpoint = proposalId
-            ? `https://pmspreview-htfbhkdnffcpf5dz.centralindia-01.azurewebsites.net/api/faculty/proposals/${proposalId}`
-            : 'https://pmspreview-htfbhkdnffcpf5dz.centralindia-01.azurewebsites.net/api/faculty/proposals';
+            ? `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/faculty/proposals/${proposalId}`
+            : `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/faculty/proposals`;
         const apiMethod = proposalId ? 'PUT' : 'POST';
 
         try {
@@ -494,7 +494,7 @@ export default function EventProposalForm() {
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-4 mb-10 p-5 bg-blue-50 rounded-lg border border-blue-100">
                                 <div><label className="block text-gray-600 text-sm font-medium mb-1">Convener Name</label><p className="text-gray-900 break-words">{currentUser?.name || '...'}</p></div>
                                 <div><label className="block text-gray-600 text-sm font-medium mb-1">Convener Email</label><p className="text-gray-900 break-words">{currentUser?.email || '...'}</p></div>
-                                <div><label className="block text-gray-600 text-sm font-medium mb-1">Department</label><p id="organizing-department" className="text-gray-900 break-words">{currentUser?.department || '...'}</p></div>
+                                {/* <div><label className="block text-gray-600 text-sm font-medium mb-1">Department</label><p id="organizing-department" className="text-gray-900 break-words">{currentUser?.department || '...'}</p></div> */}
                             </div>
 
                             <form className="space-y-10" onSubmit={handleSubmit} noValidate>
