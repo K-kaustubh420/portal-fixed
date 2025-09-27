@@ -12,6 +12,18 @@ import { BiLogOut } from "react-icons/bi";
 
 import { useAuth } from '@/context/AuthContext'; // Adjust path if necessary
 
+// 1. Define an interface for the signup form state for better type safety
+interface ISignupForm {
+    name: string;
+    email: string;
+    password: string;
+    phone: string;
+    role: string;
+    designation: string;
+    department_name: string;
+    scope_departments: string;
+}
+
 const Navbar = () => {
     const [isLoginPopupOpen, setIsLoginPopupOpen] = useState(false);
     const [email, setEmail] = useState('');
@@ -21,15 +33,16 @@ const Navbar = () => {
 
     // New states for Signup
     const [isSignupPopupOpen, setIsSignupPopupOpen] = useState(false);
-    const [signupForm, setSignupForm] = useState({
+    // 2. Apply the interface to the useState hook
+    const [signupForm, setSignupForm] = useState<ISignupForm>({
         name: '',
         email: '',
         password: '',
         phone: '',
         role: '',
         designation: '',
-        department_name: '', // Conditional for hod/faculty
-        scope_departments: '', // Conditional for chair/vice_chair
+        department_name: 'Computing Technologies', // Pre-fill since it's hardcoded
+        scope_departments: '',
     });
     const [signupError, setSignupError] = useState<string | null>(null);
     const [isSignupSubmitting, setIsSignupSubmitting] = useState(false);
@@ -64,7 +77,7 @@ const Navbar = () => {
                 phone: '',
                 role: '',
                 designation: '',
-                department_name: '',
+                department_name: 'Computing Technologies', // Pre-fill since it's hardcoded
                 scope_departments: '',
             });
         }
@@ -131,9 +144,12 @@ const Navbar = () => {
         setIsSignupSubmitting(true);
 
         const apiBaseUril = process.env.NEXT_PUBLIC_API_BASE_URL!;
-        let { name, email, password, phone, role, designation, department_name, scope_departments } = signupForm;
+        
+        // 3. FIX: Use `const` for variables that are not reassigned.
+        const { name, email, password, phone, role, designation, scope_departments } = signupForm;
 
-        department_name = "Computing Technologies"; // Hardcoded department name
+        // Since department_name is always hardcoded, we can declare it as a constant directly.
+        const department_name = "Computing Technologies";
 
         const payload: Record<string, any> = {
             name,
@@ -170,7 +186,7 @@ const Navbar = () => {
                 setSignupSuccess(data.message || "User created successfully! You can now log in.");
                 // Optionally, clear the form after success if desired
                 setSignupForm({
-                    name: '', email: '', password: '', phone: '', role: '', designation: '', department_name: '', scope_departments: '',
+                    name: '', email: '', password: '', phone: '', role: '', designation: '', department_name: 'Computing Technologies', scope_departments: '',
                 });
             } else {
                 const errorMessage = data?.message || `Signup failed with status: ${response.status}`;
@@ -339,7 +355,7 @@ const Navbar = () => {
                                     <option value="chair">Chair</option>
                                     <option value="vice_chair">Vice Chair</option>
                                     <option value="dean">Dean</option>
-                                    <option value="accounts">Accounts</option> Added accounts role as it exists in the restricted list */}
+                                    <option value="accounts">Accounts</option> */}
                                 </select>
                             </div>
                             <div>
@@ -355,7 +371,7 @@ const Navbar = () => {
                             {(signupForm.role === 'hod' || signupForm.role === 'faculty') && (
                                 <div>
                                     <label htmlFor="signupDepartmentName" className="block text-gray-700 text-sm font-medium mb-1">Department Name</label>
-                                    <input id="signupDepartmentName" type="text" name="department_name" className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-blue-400 focus:border-transparent focus:outline-none text-gray-700 placeholder-gray-400" placeholder="Department Name" required={(signupForm.role === 'hod' || signupForm.role === 'faculty')} value={"Computing Technologies"} onChange={handleSignupChange} disabled />
+                                    <input id="signupDepartmentName" type="text" name="department_name" className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-blue-400 focus:border-transparent focus:outline-none text-gray-700 placeholder-gray-400" required={(signupForm.role === 'hod' || signupForm.role === 'faculty')} value={signupForm.department_name} onChange={handleSignupChange} disabled />
                                 </div>
                             )}
 

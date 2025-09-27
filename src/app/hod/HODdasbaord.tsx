@@ -18,13 +18,28 @@ import Recents from './recents'; // Adjust path
 import CalendarView, { CalendarProposal } from './CalnderView'; // Adjust path & import type
 import { useAuth } from '@/context/AuthContext';
 
-// --- Interfaces (Your original code, unchanged) ---
+// --- Interfaces ---
+
+// For the main list of proposals
 interface HODProposalListItem {
     id: number; user_id: number; title: string; description: string; start: string; event: string;
     end: string; category: string; status: string; awaiting: string | null;
     created_at: string; updated_at: string;
+    // User object is not provided in the list API, so it's optional
     user?: { id: number; name: string; email: string; department?: string; designation?: string; };
 }
+
+// --- MODIFIED INTERFACES FOR DETAILED VIEW TO MATCH YOUR API RESPONSE ---
+interface HODDetailedProposalFaculty {
+    id: number;
+    name: string;
+    email: string;
+    phone?: string;
+    role?: string;
+    designation?: string;
+    dept_id?: number; // Department is referenced by ID
+}
+
 interface HODDetailedProposalUser { id: number; name: string; email: string; department?: string; designation?: string; role?: string; }
 interface HODDetailedProposalChiefPivot { proposal_id: number; chief_id: number; reason: string | null; hotel_name: string | null; hotel_address: string | null; hotel_duration: number | null; hotel_type: 'srm' | 'others' | null; travel_name: string | null; travel_address: string | null; travel_duration: number | null; travel_type: 'srm' | 'others' | null; created_at: string; updated_at: string; }
 interface HODDetailedProposalChief { id: number; name: string; designation: string; address: string; phone: string; pan: string; created_at: string; updated_at: string; pivot: HODDetailedProposalChiefPivot; }
@@ -32,15 +47,22 @@ interface HODDetailedProposalItem { id: number; proposal_id: number; category: s
 interface HODDetailedProposalSponsor { id: number; proposal_id: number; category: string; amount: number; reward: string; mode: string; about: string; benefit: string; created_at: string; updated_at: string; }
 interface HODDetailedProposalMessageUser { id: number; name: string; email: string; role: string; designation?: string; }
 interface HODDetailedProposalMessage { id: number; proposal_id: number; user_id: number; message: string; created_at: string; updated_at: string; user: HODDetailedProposalMessageUser; }
+
+// Main interface for a single, detailed proposal
 interface HODDetailedProposal {
     id: number; user_id: number; title: string; description: string; start: string; end: string;
     category: string; past: string | null; other: string | null; status: string; participant_expected: number | null;
     participant_categories: string | null; fund_uni: number | null; fund_registration: number | null;
     fund_sponsor: number | null; fund_others: number | null; awaiting: string | null; created_at: string; updated_at: string;
-    user: HODDetailedProposalUser; chiefs: HODDetailedProposalChief[] | null; items: HODDetailedProposalItem[];
+    faculty: HODDetailedProposalFaculty;
+    user?: HODDetailedProposalUser;
+    chiefs: HODDetailedProposalChief[] | null; items: HODDetailedProposalItem[];
     sponsors: HODDetailedProposalSponsor[]; messages: HODDetailedProposalMessage[];
 }
+// --- END MODIFIED INTERFACES ---
+
 interface HODDetailedProposalResponse { proposal: HODDetailedProposal; }
+
 interface PopupProposal {
     id: string; title: string; description: string; category: string; status: string;
     eventStartDate: string; eventEndDate: string; submissionTimestamp: string; date: string;
@@ -60,7 +82,6 @@ interface PopupProposal {
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
 const HODDashboard: React.FC = () => {
-    // --- All your original state and hooks are untouched ---
     const [proposals, setProposals] = useState<HODProposalListItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -72,16 +93,18 @@ const HODDashboard: React.FC = () => {
     const { token, user, logout, isLoading: isAuthLoading } = useAuth();
     const router = useRouter();
 
-    // --- All your original functions are untouched ---
     const fetchProposals = useCallback(async (authToken: string) => {
         if (!user || user.role !== 'hod') return;
         setLoading(true); setError(null);
         const proposalEndpoint = `${API_BASE_URL}/api/hod/proposals`;
         try {
             const response = await axios.get<any>(proposalEndpoint, { headers: { Authorization: `Bearer ${authToken}`, Accept: 'application/json' } });
-            const proposalsArray: HODProposalListItem[] | null = Array.isArray(response.data) ? response.data : Array.isArray(response.data?.data) ? response.data.data : Array.isArray(response.data?.proposals) ? response.data.proposals : null;
+            // Your API nests the array in `response.data.proposals`
+            const proposalsArray: HODProposalListItem[] | null = Array.isArray(response.data?.proposals) ? response.data.proposals : null;
             if (proposalsArray) {
-                 const cleanedData = proposalsArray.map(p => ({ ...p, status: p.status?.toLowerCase() || 'unknown', user: p.user || { id: -1, name: 'Unknown Submitter', email: 'N/A' } }));
+                 // --- FIX: Don't create a fake user object. Just clean the status. ---
+                 // The 'user' property will be undefined for each item in the list, which is accurate.
+                 const cleanedData = proposalsArray.map(p => ({ ...p, status: p.status?.toLowerCase() || 'unknown' }));
                  setProposals(cleanedData);
             } else {
                 setProposals([]); setError("Received invalid proposal list format.");
@@ -106,7 +129,7 @@ const HODDashboard: React.FC = () => {
             const proposalData = response.data.proposal;
             if (!proposalData) { throw new Error("Proposal data missing in API response."); }
 
-             const submitter = proposalData.user || {};
+             const submitter = proposalData.faculty || proposalData.user || {};
              const primaryChief = proposalData.chiefs?.[0];
              const chiefPivot = primaryChief?.pivot;
              const calculatedBudget = (proposalData.fund_uni ?? 0) + (proposalData.fund_registration ?? 0) + (proposalData.fund_sponsor ?? 0) + (proposalData.fund_others ?? 0);
@@ -117,7 +140,10 @@ const HODDashboard: React.FC = () => {
                 id: String(proposalData.id), title: proposalData.title || 'N/A', description: proposalData.description || 'N/A',
                 category: proposalData.category || 'N/A', status: proposalData.status?.toLowerCase() || 'unknown', eventStartDate: proposalData.start,
                 eventEndDate: proposalData.end, submissionTimestamp: proposalData.created_at, date: proposalData.start,
-                organizer: submitter.department || 'N/A', convenerName: submitter.name || `User ID: ${proposalData.user_id}`, convenerEmail: submitter.email || undefined, convenerDesignation: submitter.designation || undefined,
+                organizer: 'N/A', // Your API provides dept_id, not a department name string.
+                convenerName: submitter.name || `User ID: ${proposalData.user_id}`,
+                convenerEmail: submitter.email || undefined,
+                convenerDesignation: submitter.designation || undefined,
                 participantExpected: proposalData.participant_expected, participantCategories: participantCats,
                 chiefGuestName: primaryChief?.name, chiefGuestDesignation: primaryChief?.designation, chiefGuestAddress: primaryChief?.address,
                 chiefGuestPhone: primaryChief?.phone, chiefGuestPan: primaryChief?.pan, chiefGuestReason: chiefPivot?.reason || undefined,
@@ -197,15 +223,13 @@ const HODDashboard: React.FC = () => {
          else { console.warn("Calendar event clicked, but no ID found in data:", proposalData); }
      };
 
-    // --- ADDED EXPORT FUNCTIONS ---
-
-    // ** NEW ** Function to generate Excel Report
     const generateDashboardReportXlsx = () => {
         const validProposals = Array.isArray(proposals) ? proposals : [];
         if (validProposals.length === 0) {
             alert("No proposal data available to generate an Excel report.");
             return;
         }
+        // --- FIX: Change column to 'Submitter ID' as name is not available in the list view ---
         const dataForSheet = validProposals.map(p => ({
             "ID": p.id,
             "Title": p.title ?? 'N/A',
@@ -213,8 +237,7 @@ const HODDashboard: React.FC = () => {
             "Category": p.category ?? 'N/A',
             "Status": p.status ?? 'N/A',
             "Awaiting": p.awaiting ?? '-',
-            "Submitted By": p.user?.name ?? 'Unknown',
-            "Department": p.user?.department ?? 'N/A',
+            "Submitter ID": p.user_id, // Use the user_id which is available
             "Start Date": new Date(p.start).toLocaleDateString(),
         }));
         const ws = XLSX.utils.json_to_sheet(dataForSheet);
@@ -223,7 +246,6 @@ const HODDashboard: React.FC = () => {
         XLSX.writeFile(wb, "HOD_Dashboard_Report.xlsx");
     };
 
-    // ** FIXED ** Function to generate PDF Report
     const generateDashboardReportPdf = async () => {
         const validProposals = Array.isArray(proposals) ? proposals : [];
         if (validProposals.length === 0) {
@@ -242,36 +264,25 @@ const HODDashboard: React.FC = () => {
             acc[eventType] = (acc[eventType] || 0) + 1;
             return acc;
         }, {} as { [key: string]: number });
-        
-        // This helper function now reliably waits for the chart to finish rendering
+
         const renderChart = (type: 'pie' | 'bar', data: any, options: any): Promise<string> => {
             return new Promise((resolve, reject) => {
                 const canvas = document.createElement('canvas');
                 canvas.width = 400;
                 canvas.height = 200;
-        
-                // This callback ensures the image is captured only after rendering is complete
-                const animation = {
-                    onComplete: () => {
-                        setTimeout(() => {
-                           const image = canvas.toDataURL('image/png');
-                           chart.destroy();
-                           resolve(image);
-                        }, 100); // Small delay to ensure canvas is ready
-                    }
-                };
-        
-                const chart = new Chart(canvas, {
-                    type,
-                    data,
-                    options: { ...options, animation }
-                });
 
-                // Fallback timeout in case onComplete doesn't fire
-                setTimeout(() => {
-                    reject(new Error("Chart rendering timed out."));
+                try {
+                    const chart = new Chart(canvas, {
+                        type,
+                        data,
+                        options: { ...options, animation: false, responsive: false }
+                    });
+                    const image = canvas.toDataURL('image/png');
                     chart.destroy();
-                }, 2000); 
+                    resolve(image);
+                } catch (error) {
+                    reject(error);
+                }
             });
         };
 
@@ -283,7 +294,7 @@ const HODDashboard: React.FC = () => {
                 `Total Proposals: ${totalCount} | Approved: ${approvedCount} | Pending: ${pendingCount} | Rejected: ${rejectedCount} | In Review: ${reviewCount}`,
                 14, 48
             );
-            
+
             const statusChartImage = await renderChart('pie', {
                 labels: ['Approved', 'Pending', 'Rejected', 'In Review'],
                 datasets: [{ data: [approvedCount, pendingCount, rejectedCount, reviewCount], backgroundColor: ['#28a745', '#ffc107', '#dc3545', '#17a2b8'] }],
@@ -295,10 +306,11 @@ const HODDashboard: React.FC = () => {
                 datasets: [{ label: 'Number of Proposals', data: Object.values(eventTypeCounts), backgroundColor: '#007bff' }],
             }, { plugins: { title: { display: true, text: 'Proposals by Event Type' } } });
             doc.addImage(eventTypeChartImage, 'PNG', 110, 60, 85, 42.5);
-            
-            const tableColumns = ["ID", "Title", "Event Type", "Status", "Awaiting", "Submitted By"];
-            const tableRows = validProposals.map(p => [ p.id.toString(), p.title ?? 'N/A', p.event ?? 'N/A', p.status ?? 'N/A', p.awaiting ?? '-', p.user?.name ?? 'Unknown' ]);
-            
+
+            // --- FIX: Change column to 'Submitter ID' as name is not available in the list view ---
+            const tableColumns = ["ID", "Title", "Event Type", "Status", "Awaiting", "Submitter ID"];
+            const tableRows = validProposals.map(p => [ p.id.toString(), p.title ?? 'N/A', p.event ?? 'N/A', p.status ?? 'N/A', p.awaiting ?? '-', p.user_id.toString() ]);
+
             autoTable(doc, {
                 startY: 115, head: [tableColumns], body: tableRows, theme: 'striped', headStyles: { fillColor: [41, 128, 185] },
             });
@@ -306,12 +318,10 @@ const HODDashboard: React.FC = () => {
             doc.save('HOD_Dashboard_Report.pdf');
         } catch (chartError) {
             console.error("Failed to render chart for PDF:", chartError);
-            alert("Could not generate chart for the PDF report. Please try again.");
+            alert("Could not generate the PDF report due to a chart rendering error. Please try again.");
         }
     };
-    // --- END EXPORT FUNCTIONS ---
 
-    // --- ORIGINAL RENDER LOGIC ---
      if (isAuthLoading || loading) { return ( <div className="flex justify-center items-center h-screen bg-white"><span className="loading loading-bars loading-lg text-primary"></span></div> ); }
      if (error) { return ( <div className="flex flex-col items-center justify-center h-screen p-4"> <div className={`alert ${error.startsWith("Access Denied") ? 'alert-warning' : 'alert-error'} shadow-lg max-w-md mb-4`}> <div> <svg xmlns="http://www.w3.org/2000/svg" className="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">{error.startsWith("Access Denied") ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /> : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />}</svg> <span>{error}</span> </div> </div> {token && user && user.role === 'hod' && !error.startsWith("Access Denied") && ( <button onClick={refreshProposals} className="btn btn-primary">Retry</button> )} <button onClick={logout} className="btn btn-ghost mt-2">Logout</button> </div> ); }
      if (!user || user.role !== 'hod') { return <div className="flex justify-center items-center h-screen">Access Denied. Redirecting...</div>; }
@@ -329,7 +339,6 @@ const HODDashboard: React.FC = () => {
 
     return (
         <div className="hod-dashboard p-4 md:p-6 space-y-6 min-h-screen bg-gray-50 text-black">
-            {/* --- MODIFIED HEADER WITH BUTTONS --- */}
             <div className="flex flex-wrap justify-between items-center gap-4">
                 <h1 className="text-2xl md:text-3xl font-bold text-gray-800">HOD Dashboard</h1>
                 <div className="flex items-center gap-2">
@@ -349,7 +358,6 @@ const HODDashboard: React.FC = () => {
                     </button>
                 </div>
             </div>
-            {/* --- END MODIFIED HEADER --- */}
             
             <Stats totalProposalsCount={totalCount} approvedProposalsCount={approvedCount} pendingProposalsCount={pendingCount} rejectedProposalsCount={rejectedCount} reviewProposalsCount={reviewCount} />
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -371,7 +379,9 @@ const HODDashboard: React.FC = () => {
                       proposals={validProposals.map(p => ({
                          id: String(p.id), title: p.title || 'N/A', eventStartDate: p.start, eventEndDate: p.end, status: p.status?.toLowerCase() || 'unknown',
                          organizer: p.user?.department || 'N/A', date: p.start, category: p.category || 'N/A', description: p.description || 'N/A',
-                         convenerName: p.user?.name || `User ${p.user_id}`, submissionTimestamp: p.created_at, awaiting: p.awaiting, fundingDetails: {},
+                         // --- FIX: Use user_id as a fallback since name isn't in the list API ---
+                         convenerName: p.user?.name || `User ${p.user_id}`,
+                         submissionTimestamp: p.created_at, awaiting: p.awaiting, fundingDetails: {},
                          cost: undefined, email: p.user?.email || undefined, location: undefined, convenerEmail: p.user?.email || undefined,
                          chiefGuestName: undefined, chiefGuestDesignation: undefined, designation: p.user?.designation || undefined,
                          detailedBudget: [], durationEvent: '', estimatedBudget: undefined, eventDate: p.start, eventDescription: p.description || 'N/A',

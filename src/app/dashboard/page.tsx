@@ -15,6 +15,10 @@ import ChairDashboard from '../chairperson/ChairDashboard';
 import ViceChairDashboard from '../associatechair/ViceDashboard';
 import AccountsDashboard from '../accounts/accounts';
 
+// 1. ADD THIS LINE: Import the CoordinatorDashboard component
+import CoordinatorDashboard from '../coordinator/page';
+
+
 // React component names should be PascalCase
 const Page = () => {
   // State to hold the loaded user data
@@ -47,7 +51,6 @@ const Page = () => {
     } else if (role === 'dean') {
       DashboardComponent = <DeanDashboard />;
     } else if(role ==='chair'){ 
-
       DashboardComponent = <ChairDashboard />;
     }
     else if (role=='vice_chair'){
@@ -56,8 +59,12 @@ const Page = () => {
     else if (role=='accounts'){
       DashboardComponent = <AccountsDashboard />;
     }
+    // 2. ADD THIS BLOCK: Check for the specific coordinator email before falling back to the default faculty dashboard
+    else if (user.email === 'coord@srmist.edu.in') {
+      DashboardComponent = <CoordinatorDashboard />;
+    }
      else {
-      // Assuming 'convener' or any other role falls here
+      // Assuming 'convener' or any other regular faculty falls here
       DashboardComponent = <ConvenerDashboard />;
     }
   } else {

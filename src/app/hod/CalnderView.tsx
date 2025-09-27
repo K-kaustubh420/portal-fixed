@@ -70,20 +70,26 @@ const getEventColor = (status: string): { backgroundColor: string; borderColor: 
 
 const CalendarView: React.FC<CalendarViewProps> = ({ proposals, onEventClick }) => {
 
-    const calendarEvents: EventInput[] = proposals.map(proposal => {
-        const { backgroundColor, borderColor } = getEventColor(proposal.status);
-        return {
-            id: proposal.id,
-            title: proposal.title,
-            start: proposal.eventStartDate,
-            end: proposal.eventEndDate,
-            extendedProps: proposal, // Attach full data
-            backgroundColor,
-            borderColor,
-            textColor: 'white',
-            classNames: ['cursor-pointer', 'text-xs', 'p-0.5', 'rounded-sm']
-        };
-    });
+    // Filter proposals to only include 'approved' or 'completed' statuses
+    const calendarEvents: EventInput[] = proposals
+        .filter(proposal => {
+            const status = proposal.status.toLowerCase();
+            return status === 'approved' || status === 'completed';
+        })
+        .map(proposal => {
+            const { backgroundColor, borderColor } = getEventColor(proposal.status);
+            return {
+                id: proposal.id,
+                title: proposal.title,
+                start: proposal.eventStartDate,
+                end: proposal.eventEndDate,
+                extendedProps: proposal, // Attach full data
+                backgroundColor,
+                borderColor,
+                textColor: 'white',
+                classNames: ['cursor-pointer', 'text-xs', 'p-0.5', 'rounded-sm']
+            };
+        });
 
     // Internal handler to extract data and pass to parent
     const handleEventClickInternal = (clickInfo: any) => {
@@ -92,7 +98,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({ proposals, onEventClick }) 
     };
 
     if (!proposals) return <LoadingComponent />;
-    if (proposals.length === 0) return <NoProposalsComponent />;
+    // NOTE: The component for no proposals will now also show if there are proposals, but none are 'approved' or 'completed'.
+    // This is the expected behavior based on the filtering logic.
+    if (calendarEvents.length === 0) return <NoProposalsComponent />;
+
 
     return (
         <div className="h-full w-full font-sans text-gray-800 bg-white p-4 shadow-md rounded-lg">

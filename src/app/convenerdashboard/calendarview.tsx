@@ -91,7 +91,13 @@ const CalendarView: React.FC<CalendarViewProps> = ({ proposals }) => {
     // const [loading] = useState(false); // Remove this state
 
     // Map the incoming proposals prop to the FullCalendar event format
-    const calendarEvents: EventInput[] = proposals.map(proposal => {
+    // const calendarEvents: EventInput[] = proposals.map(proposal => {
+    const calendarEvents: EventInput[] = proposals
+        .filter(proposal => {
+            const status = proposal.status.toLowerCase();
+            return status === 'approved' || status === 'completed';
+        })
+        .map(proposal => {
         let backgroundColor = '#6b7280'; // Default gray
         let borderColor = '#4b5563';     // Darker gray border
 
@@ -102,6 +108,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ proposals }) => {
                 backgroundColor = '#10b981'; // Emerald 600
                 borderColor = '#059669';     // Emerald 700
                 break;
+            // NOTE: The other cases are now redundant due to the filter, but are kept for reference
             case 'pending':
                 backgroundColor = '#f59e0b'; // Amber 500
                 borderColor = '#d97706';     // Amber 600
@@ -178,8 +185,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({ proposals }) => {
         return <LoadingComponent />; // Or an error message
     }
 
-    if (proposals.length === 0) {
-        return <NoProposalsComponent />; // Show message if no proposals are passed
+    // if (proposals.length === 0) {
+    if (calendarEvents.length === 0) { // Check the filtered list instead
+        return <NoProposalsComponent />; // Show message if no proposals are passed or match the filter
     }
 
     // Render the Calendar
