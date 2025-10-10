@@ -690,7 +690,7 @@ const Popup: React.FC<PopupProps> = ({
                     <div className="overflow-x-auto max-h-60 border rounded-md">
                       <table className={`table table-sm w-full text-xs ${isClient ? 'sticky-table' : ''}`}>
                         <thead className="bg-gray-100 z-10">
-                          <tr>
+                          <tr className='text-blue-500'>
                             <th className="p-2">Category</th><th className="p-2">Subcategory</th><th className="p-2">Type</th>
                             <th className="p-2 text-center">Status</th><th className="p-2 text-right">Qty</th>
                             <th className="p-2 text-right">Cost/Unit</th><th className="p-2 text-right">Total</th>
@@ -724,7 +724,7 @@ const Popup: React.FC<PopupProps> = ({
                     <div className="overflow-x-auto max-h-60 border rounded-md">
                       <table className={`table table-sm w-full text-xs ${isClient ? 'sticky-table' : ''}`}>
                         <thead className="bg-gray-100 z-10">
-                          <tr>
+                          <tr className='text-blue-500'>
                             <th className="p-2">Sponsor/Category</th><th className="p-2">Mode</th><th className="p-2 text-right">Amount</th>
                             <th className="p-2">Reward</th><th className="p-2">Benefit</th><th className="p-2">About</th>
                           </tr>
