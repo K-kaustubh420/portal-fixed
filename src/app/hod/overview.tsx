@@ -66,7 +66,7 @@ const Overview: React.FC<OverviewProps> = ({ eventProposals, handleProposalClick
     return (
         <div className="card shadow-md rounded-lg bg-white">
             <div className="card-body">
-                <h2 className="card-title text-lg font-bold text-gray-700 mb-4">All Proposals Overview</h2>
+                <h2 className="card-title text-lg font-bold text-gray-700 mb-4">Adhoc Proposals Overview</h2>
                 <div className="overflow-x-auto">
                     
                     <table className="table table-compact w-full">

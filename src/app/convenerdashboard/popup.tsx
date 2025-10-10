@@ -693,8 +693,8 @@ const Popup: React.FC<PopupProps> = ({ selectedProposal, closePopup, onProposalU
                                     )}
                                     {canModifyProposal && (
                                         <>
-                                        <button onClick={openRescheduleForm} className="btn btn-outline btn-primary btn-sm flex items-center gap-1" disabled={isLoading}><RefreshCw size={14} /> Reschedule</button>
-                                        <button onClick={openCancelForm} className="btn btn-outline btn-error btn-sm flex items-center gap-1" disabled={isLoading}><Ban size={14} /> Cancel Proposal</button>
+                                        {/* <button onClick={openRescheduleForm} className="btn btn-outline btn-primary btn-sm flex items-center gap-1" disabled={isLoading}><RefreshCw size={14} /> Reschedule</button>
+                                        <button onClick={openCancelForm} className="btn btn-outline btn-error btn-sm flex items-center gap-1" disabled={isLoading}><Ban size={14} /> Cancel Proposal</button> */}
                                         </>
                                     )}
                                 </>

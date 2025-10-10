@@ -28,7 +28,7 @@ const Recents: React.FC<RecentsProps> = ({ recentAppliedProposals, handleProposa
     return (
         <div className="card shadow-md rounded-lg bg-white">
             <div className="card-body">
-                <h2 className="card-title text-lg font-bold text-gray-700 mb-4">Awaiting HOD Approval</h2> {/* Title reflects filtering */}
+                <h2 className="card-title text-lg font-bold text-gray-700 mb-4">Awaiting HOD Approval (adhoc) </h2> {/* Title reflects filtering */}
                 <div className="overflow-x-auto">
                     <table className="table table-compact w-full">
                         <thead>

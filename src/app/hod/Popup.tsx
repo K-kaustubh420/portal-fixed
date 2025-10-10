@@ -6,7 +6,7 @@ import * as XLSX from 'xlsx';
 import {
   X, User, Users, UserCheck, BedDouble, Car, FileText, Award, DollarSign, Info,
   CalendarDays, AlertCircle, MessageSquare, Edit, Loader2, ThumbsUp, ThumbsDown,
-  MessageCircle, Send, FileDown, UploadCloud, Image as ImageIcon, Trash2
+  MessageCircle, Send, FileDown, UploadCloud, Image as ImageIcon, Trash2, Link as LinkIcon
 } from 'lucide-react';
 
 // --- (Your existing interfaces remain unchanged) ---
@@ -142,14 +142,24 @@ const PopupSkeleton: React.FC = () => (
     </div>
 );
 
-// --- NEW Photo Upload Modal Component ---
-const PhotoUploadModal: React.FC<{
+// --- NEW/MODIFIED: PDF Options Modal Component ---
+const PdfOptionsModal: React.FC<{
   isOpen: boolean;
   onClose: () => void;
-  onGenerate: (photos: string[]) => void;
+  onGenerate: (
+    photos: string[],
+    gdriveLink: string,
+    proofs: boolean,
+    attendance: boolean,
+    brochure: boolean
+  ) => void;
 }> = ({ isOpen, onClose, onGenerate }) => {
   const [photos, setPhotos] = useState<string[]>([]);
+  const [gdriveLink, setGdriveLink] = useState('');
   const [isDragging, setIsDragging] = useState(false);
+  const [proofsAttached, setProofsAttached] = useState(false);
+  const [attendanceAndMembers, setAttendanceAndMembers] = useState(false);
+  const [brochureAttached, setBrochureAttached] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (files: FileList | null) => {
@@ -186,7 +196,11 @@ const PhotoUploadModal: React.FC<{
 
   useEffect(() => {
     if (!isOpen) {
-        setPhotos([]); // Reset on close
+        setPhotos([]);
+        setGdriveLink('');
+        setProofsAttached(false);
+        setAttendanceAndMembers(false);
+        setBrochureAttached(false);
     }
   }, [isOpen]);
 
@@ -194,46 +208,82 @@ const PhotoUploadModal: React.FC<{
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center backdrop-blur-sm bg-black bg-opacity-40 p-4">
-      <motion.div 
+      <motion.div
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
-        className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col"
+        className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col"
       >
         <div className="flex justify-between items-center p-4 border-b">
-          <h3 className="text-lg font-semibold text-gray-800">Attach Photos (Optional)</h3>
+          <h3 className="text-lg font-semibold text-gray-800">PDF Report Options</h3>
           <button onClick={onClose} className="text-gray-500 hover:text-red-600"><X size={24} /></button>
         </div>
-        <div className="p-6 flex-grow overflow-y-auto">
-          <div
-            className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${isDragging ? 'border-indigo-500 bg-indigo-50' : 'border-gray-300 bg-gray-50'}`}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-          >
-            <UploadCloud className="mx-auto h-12 w-12 text-gray-400" />
-            <p className="mt-2 text-sm text-gray-600">Drag & drop images here</p>
-            <p className="text-xs text-gray-500">or</p>
-            <button onClick={() => fileInputRef.current?.click()} className="btn btn-sm btn-outline mt-2">
-              Browse Files
-            </button>
-            <input
-              type="file"
-              ref={fileInputRef}
-              multiple
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => handleFileChange(e.target.files)}
-            />
+        <div className="p-6 flex-grow overflow-y-auto space-y-6">
+          <div>
+            <label htmlFor="gdriveLink" className="block text-sm font-medium mb-2">
+              Google Drive Link (Optional)
+            </label>
+            <div className="relative">
+              <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <input
+                type="url"
+                id="gdriveLink"
+                value={gdriveLink}
+                onChange={(e) => setGdriveLink(e.target.value)}
+                placeholder="https://drive.google.com/..."
+                className="input bg-blue-50 input-bordered w-full pl-10"
+              />
+            </div>
+          </div>
+          <div>
+            <h4 className="text-sm font-medium text-gray-700 mb-2">Attached Documents Checklist</h4>
+            <div className="space-y-2 rounded-md border p-3 bg-gray-50">
+                <label className="flex items-center cursor-pointer">
+                    <input type="checkbox" id="proofs" checked={proofsAttached} onChange={(e) => setProofsAttached(e.target.checked)} className="checkbox checkbox-sm checkbox-primary" />
+                    <span className="ml-2 text-sm text-gray-700">Proofs Attached</span>
+                </label>
+                <label className="flex items-center cursor-pointer">
+                    <input type="checkbox" id="attendance" checked={attendanceAndMembers} onChange={(e) => setAttendanceAndMembers(e.target.checked)} className="checkbox checkbox-sm checkbox-primary" />
+                    <span className="ml-2 text-sm text-gray-700">Attendance and Members Details</span>
+                </label>
+                <label className="flex items-center cursor-pointer">
+                    <input type="checkbox" id="brochure" checked={brochureAttached} onChange={(e) => setBrochureAttached(e.target.checked)} className="checkbox checkbox-sm checkbox-primary" />
+                    <span className="ml-2 text-sm text-gray-700">Brochure</span>
+                </label>
+            </div>
+          </div>
+          <div>
+            <h4 className="text-sm font-medium text-gray-700 mb-2">Attach Photos (Optional)</h4>
+            <div
+              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${isDragging ? 'border-indigo-500 bg-indigo-50' : 'border-gray-300 bg-gray-50'}`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
+              <UploadCloud className="mx-auto h-12 w-12 text-gray-400" />
+              <p className="mt-2 text-sm text-gray-600">Drag & drop images here</p>
+              <p className="text-xs text-gray-500">or</p>
+              <button onClick={() => fileInputRef.current?.click()} className="btn btn-sm btn-outline mt-2">
+                Browse Files
+              </button>
+              <input
+                type="file"
+                ref={fileInputRef}
+                multiple
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => handleFileChange(e.target.files)}
+              />
+            </div>
           </div>
           {photos.length > 0 && (
-            <div className="mt-6">
+            <div>
               <h4 className="font-semibold text-sm mb-2">Image Previews:</h4>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                 {photos.map((photo, index) => (
                   <div key={index} className="relative group border rounded-md overflow-hidden">
                     <img src={photo} alt={`preview ${index}`} className="h-28 w-full object-cover" />
-                    <button 
+                    <button
                       onClick={() => removePhoto(index)}
                       className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
                       aria-label="Remove image"
@@ -248,9 +298,8 @@ const PhotoUploadModal: React.FC<{
         </div>
         <div className="p-4 bg-gray-50 border-t flex justify-end gap-3">
           <button onClick={onClose} className="btn btn-ghost">Cancel</button>
-          <button onClick={() => onGenerate([])} className="btn btn-outline">Skip & Generate PDF</button>
-          <button onClick={() => onGenerate(photos)} className="btn btn-primary" disabled={photos.length === 0}>
-            Generate with {photos.length} Photo{photos.length !== 1 ? 's' : ''}
+          <button onClick={() => onGenerate(photos, gdriveLink, proofsAttached, attendanceAndMembers, brochureAttached)} className="btn btn-primary">
+            Generate PDF
           </button>
         </div>
       </motion.div>
@@ -279,7 +328,7 @@ const Popup: React.FC<PopupProps> = ({
   const [localErrorMessage, setLocalErrorMessage] = useState<string | null>(null);
   const [isClient, setIsClient] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
-  const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false); // NEW STATE
+  const [isPdfOptionsModalOpen, setIsPdfOptionsModalOpen] = useState(false);
 
   useEffect(() => {
     setIsRejecting(false);
@@ -341,22 +390,39 @@ const Popup: React.FC<PopupProps> = ({
   const executeReject = async () => { if (!rejectionInput.trim()) { setLocalErrorMessage("Rejection reason cannot be empty."); return; } if (onReject && selectedProposal) { setLocalErrorMessage(null); await onReject(selectedProposal.id, rejectionInput); } };
   const executeReview = async () => { if (!reviewInput.trim()) { setLocalErrorMessage("Review comments cannot be empty."); return; } if (onReview && selectedProposal) { setLocalErrorMessage(null); await onReview(selectedProposal.id, reviewInput); } };
 
-  // MODIFIED: This function now just opens the photo modal
   const handleDownloadPdf = () => {
     if (!selectedProposal) return;
-    setIsPhotoModalOpen(true);
+    setIsPdfOptionsModalOpen(true);
   };
 
-  // NEW: This function contains the original PDF logic and now accepts photos
-  const generatePdfWithPhotos = (photos: string[] = []) => {
+  const generatePdfWithOptions = (
+    photos: string[] = [],
+    gdriveLink: string = '',
+    proofsAttached: boolean,
+    attendanceAndMembers: boolean,
+    brochureAttached: boolean
+  ) => {
     if (!selectedProposal) return;
     setIsDownloading(true);
-    setIsPhotoModalOpen(false); // Close modal once generation starts
+    setIsPdfOptionsModalOpen(false);
 
     const photosHtml = photos.length > 0
       ? `<h2>Photographs</h2><div style="margin-top: 15px;">${photos.map(src => `<img src="${src}" style="width: 100%; max-width: 700px; height: auto; margin-bottom: 15px; page-break-inside: avoid;" />`).join('')}</div>`
       : '<p><strong>17. Photographs:</strong> No photographs were attached.</p>';
+
+    const gdriveLinkHtml = gdriveLink.trim()
+      ? `<div class="section"><h2>Supporting Documents</h2><p><strong>Google Drive Link:</strong> <a href="${gdriveLink.trim()}" target="_blank" rel="noopener noreferrer">${gdriveLink.trim()}</a></p></div>`
+      : '';
       
+    const attachmentsChecklistHtml = `
+      <div class="section">
+        <h2>Attachments Checklist</h2>
+        <p><strong>- Proofs Attached:</strong> ${proofsAttached ? 'Yes' : 'No'}</p>
+        <p><strong>- Attendance and Members Details:</strong> ${attendanceAndMembers ? 'Yes' : 'No'}</p>
+        <p><strong>- Brochure:</strong> ${brochureAttached ? 'Yes' : 'No'}</p>
+      </div>
+    `;
+
     const reportHtml = `
       <html>
         <head>
@@ -368,6 +434,7 @@ const Popup: React.FC<PopupProps> = ({
             h3 { font-size: 14px; margin-top: 20px; }
             p { margin: 5px 0; }
             strong { font-weight: bold; }
+            a { color: #0000EE; text-decoration: underline; }
             .content { max-width: 800px; margin: auto; } .section { margin-bottom: 15px; page-break-inside: avoid; }
             .financial-item { padding-left: 20px; } .signature { margin-top: 40px; }
           </style>
@@ -400,6 +467,8 @@ const Popup: React.FC<PopupProps> = ({
               <p class="financial-item"><strong>Total Expenditure incurred:</strong> ${formatCurrency(selectedProposal.estimatedBudget)}</p>
               <p class="financial-item"><strong>Amount returned to University:</strong> N/A</p>
             </div>
+            ${attachmentsChecklistHtml}
+            ${gdriveLinkHtml}
             <div class="section">
               ${photosHtml}
             </div>
@@ -429,8 +498,6 @@ const Popup: React.FC<PopupProps> = ({
         return value;
     };
 
-    // --- SHEET 1: Main Report (Proper Columnar Format) ---
-    // Create a single object representing one row of data.
     const reportDataObject = {
         "1. Name of Conveners": `${selectedProposal.convenerName} (${selectedProposal.convenerDesignation || 'N/A'})`,
         "2. Conducting Department": selectedProposal.organizer,
@@ -451,38 +518,32 @@ const Popup: React.FC<PopupProps> = ({
         "17. Photographs": "To be included in the final report."
     };
     
-    // Create the worksheet from an array containing our single data object.
     const report_ws = XLSX.utils.json_to_sheet([reportDataObject]);
 
-    // Set column widths for readability.
     const columnWidths = Object.keys(reportDataObject).map(key => ({
-        wch: key.length > 35 ? key.length : 35 // Set a minimum width of 35 or the header length
+        wch: key.length > 35 ? key.length : 35
     }));
     report_ws['!cols'] = columnWidths;
 
-    // Data for sections below the main table
     const additionalData = [
-        [], // Blank row
+        [], 
         [{ v: "18. Financial Statement", s: { font: { bold: true, sz: 12 } } }],
         ["External Sponsoring Agency:", formatCurrencyForExcel(selectedProposal.fundingDetails?.sponsorshipFund)],
         ["Contribution from University:", formatCurrencyForExcel(selectedProposal.fundingDetails?.universityFund)],
         ["Income through Registration:", formatCurrencyForExcel(selectedProposal.fundingDetails?.registrationFund)],
         ["Total Expenditure Incurred:", formatCurrencyForExcel(selectedProposal.estimatedBudget)],
         ["Amount returned to University:", "N/A"],
-        [], // Blank row
+        [], 
         ["19. Signature of Conveners:", ""],
         ["20. Signature of Dept. Event Coordinator:", ""],
         ["21. Signature of HOD:", ""]
     ];
 
-    // Append the financial and signature sections, starting from row 4.
     XLSX.utils.sheet_add_aoa(report_ws, additionalData, { origin: "A4" });
     
-    // Create the main workbook
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, report_ws, "Event Report");
 
-    // --- SHEET 2 & 3 (Unchanged, already in good format) ---
     if (selectedProposal.detailedBudget?.length > 0) {
         const budgetData: Array<any> = selectedProposal.detailedBudget.map(item => ({
             "Category": item.category, "Sub-Category": item.sub_category, "Type": item.type || '-', "Status": item.status, "Quantity": item.quantity, "Cost per Unit": item.cost, "Total Amount": item.amount
@@ -521,10 +582,10 @@ const Popup: React.FC<PopupProps> = ({
 
   return (
     <>
-      <PhotoUploadModal
-        isOpen={isPhotoModalOpen}
-        onClose={() => setIsPhotoModalOpen(false)}
-        onGenerate={generatePdfWithPhotos}
+      <PdfOptionsModal
+        isOpen={isPdfOptionsModalOpen}
+        onClose={() => setIsPdfOptionsModalOpen(false)}
+        onGenerate={generatePdfWithOptions}
       />
       <motion.div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-md bg-opacity-50 p-4"
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
@@ -539,7 +600,6 @@ const Popup: React.FC<PopupProps> = ({
           </div>
 
           <div className="p-5 md:p-6 space-y-6 overflow-y-auto flex-grow custom-scrollbar">
-              {/* All your existing JSX sections for displaying data remain here, unchanged. */}
               <section className="border border-gray-200 rounded-lg p-4 bg-gray-50/80">
               <h3 className="text-lg font-semibold text-indigo-800 mb-3 flex items-center gap-2"><Info size={18} /> Event Information</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-3">
@@ -700,7 +760,6 @@ const Popup: React.FC<PopupProps> = ({
                 </div>
               </section>
             )}
-
           </div>
 
           <div className="p-4 border-t border-gray-200 bg-gray-50 rounded-b-lg sticky bottom-0 z-10">
