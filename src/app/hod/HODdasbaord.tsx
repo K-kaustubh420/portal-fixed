@@ -295,8 +295,102 @@ const HODDashboard: React.FC = () => {
     // --- END [MODIFICATION] ---
 
     // --- (Your original generateDashboardReportXlsx and generateDashboardReportPdf functions are unchanged) ---
-    const generateDashboardReportXlsx = () => { /* ... (This function is unchanged) ... */ };
-    const generateDashboardReportPdf = async () => { /* ... (This function is unchanged) ... */ };
+    const generateDashboardReportXlsx = () => {const validProposals = Array.isArray(proposals) ? proposals : [];
+        if (validProposals.length === 0) {
+            alert("No proposal data available to generate an Excel report.");
+            return; };
+            const dataForSheet = validProposals.map(p => ({
+                "ID": p.id,
+                "Title": p.title ?? 'N/A',
+                "Event Type": p.event ?? 'N/A',
+                "Category": p.category ?? 'N/A',
+                "Status": p.status ?? 'N/A',
+                "Awaiting": p.awaiting ?? '-',
+                "Submitted By": p.user?.name ?? 'Unknown',
+                "Department": p.user?.department ?? 'N/A',
+                "Submitter ID": p.user_id, // Use the user_id which is available
+                "Start Date": new Date(p.start).toLocaleDateString(),
+            }));
+            const ws = XLSX.utils.json_to_sheet(dataForSheet);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Proposals");
+            XLSX.writeFile(wb, "HOD_Dashboard_Report.xlsx");
+        };
+        const generateDashboardReportPdf = async () => {
+            // 1. Validate 'proposals' safely
+            const validProposals = Array.isArray(proposals) ? proposals : [];
+        
+            // 2. Check if there are any proposals to report
+            if (validProposals.length === 0) {
+                alert("No proposal data available to generate a report.");
+                return;
+            }
+        
+            try {
+                const doc = new jsPDF();
+        
+                // 3. Add a Title
+                doc.setFontSize(18);
+                doc.text("Proposals Dashboard Report", 14, 22);
+        
+                // 4. Generate a summary chart (optional but recommended)
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                    new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['Approved', 'Pending', 'Rejected', 'Review'],
+                            datasets: [{
+                                data: [
+                                    validProposals.filter(p => p.status === 'approved').length,
+                                    validProposals.filter(p => p.status === 'pending').length,
+                                    validProposals.filter(p => p.status === 'rejected').length,
+                                    validProposals.filter(p => p.status === 'review').length,
+                                ],
+                                backgroundColor: ['#4CAF50', '#FFC107', '#F44336', '#2196F3'],
+                            }],
+                        },
+                        options: { responsive: false }
+                    });
+        
+                    // Add a small delay to ensure the chart renders before being added to the PDF
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    const chartImage = canvas.toDataURL('image/png');
+                    doc.addImage(chartImage, 'PNG', 14, 30, 70, 70);
+                }
+        
+                // 5. Prepare data for the autoTable
+                const tableColumn = ["ID", "Title", "Category", "Status", "Submitted By", "Start Date"];
+                const tableRows: (string | number)[][] = [];
+        
+                validProposals.forEach(proposal => {
+                    const proposalData = [
+                        proposal.id,
+                        proposal.title,
+                        proposal.category,
+                        proposal.status,
+                        proposal.user?.name || 'N/A',
+                        new Date(proposal.start).toLocaleDateString(),
+                    ];
+                    tableRows.push(proposalData);
+                });
+        
+                // 6. Add the table to the PDF
+                autoTable(doc, {
+                    head: [tableColumn],
+                    body: tableRows,
+                    startY: 110, // Adjust startY to be below the chart
+                });
+        
+                // 7. Save the PDF
+                doc.save('HOD_Dashboard_Report.pdf');
+        
+            } catch (error) {
+                console.error("Failed to generate PDF report:", error);
+                alert("An error occurred while generating the PDF. Please check the console for details.");
+            }
+        };
 
     // --- (Your original render logic, including loading/error states, is unchanged) ---
     if (isAuthLoading || loading) { return ( <div className="flex justify-center items-center h-screen bg-white"><span className="loading loading-bars loading-lg text-primary"></span></div> ); }

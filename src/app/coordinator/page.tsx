@@ -167,17 +167,50 @@ const CoordinatorDashboard: React.FC = () => {
     const calendarEvents = useMemo(() => {
         return combinedEvents.map(p => {
             const isClashing = clashingProposalIds.has(p.id);
-            let backgroundColor = '#808080'; let borderColor = '#696969';
-            if (isClashing) { backgroundColor = '#EF4444'; borderColor = '#DC2626'; } 
-            else if (p.source === 'sheet') { backgroundColor = '#22C55E'; borderColor = '#16A34A'; }
-            else if (p.source === 'api') { backgroundColor = '#3B82F6'; borderColor = '#2563EB'; }
-            const endDate = new Date(p.end + 'T00:00:00Z');
+
+            let backgroundColor = '#808080';
+            let borderColor = '#696969';
+            
+            if (isClashing) {
+              backgroundColor = '#EF4444';
+              borderColor = '#DC2626';
+            } else if (p.source === 'sheet') {
+              backgroundColor = '#22C55E';
+              borderColor = '#16A34A';
+            } else if (p.source === 'api') {
+              backgroundColor = '#3B82F6';
+              borderColor = '#2563EB';
+            }
+            
+            const normalizedEnd = p.end?.replace(' ', 'T');
+            const endDate = new Date(normalizedEnd + 'Z');
+            
+            if (isNaN(endDate.getTime())) {
+              console.warn('Invalid end date for', p.id, p.end);
+              return null;
+            }
+            
             endDate.setUTCDate(endDate.getUTCDate() + 1);
+            const finalEndDate = endDate.toISOString().split('T')[0];
+            
             return {
-                id: p.id, title: p.title, start: p.start, end: endDate.toISOString().split('T')[0],
-                allDay: true, backgroundColor, borderColor, classNames: isClashing ? ['blinking-event'] : [],
+              id: p.id,
+              title: p.title,
+              start: p.start,
+              end: finalEndDate,
+              allDay: true,
+              backgroundColor,
+              borderColor,
+              classNames: isClashing ? ['blinking-event'] : [],
             };
-        });
+            
+        })
+        // ========================================================================
+        // [FIX APPLIED HERE]
+        // Filtered out null values from the array to prevent the TypeScript error.
+        // FullCalendar's `events` prop requires an array of event objects, not `null`.
+        // ========================================================================
+        .filter(event => event !== null);
     }, [combinedEvents, clashingProposalIds]);
 
     // ========================================================================
