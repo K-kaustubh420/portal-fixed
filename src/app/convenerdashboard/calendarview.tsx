@@ -224,23 +224,17 @@ const CalendarView: React.FC<CalendarViewProps> = ({ proposals }) => {
             />
 
             {/* Render Popup when an event is selected */}
-            {selectedEvent && (
-                <Popup
-                    // Ensure the Popup component's expected prop name matches 'selectedProposal'
-                    // And that the 'selectedEvent' object structure matches Popup's expected interface
-                    selectedProposal={mapCalendarToPopupProposal(selectedEvent)}
-                    closePopup={closePopup}
-                    // Pass a function if Popup needs to trigger a refresh after an update
-                    onProposalUpdated={() => {
-                        console.log("Proposal update action triggered from CalendarView Popup");
-                        // Optionally, trigger a refetch in the parent component here if needed
-                        // For now, just closing the popup.
-                        closePopup();
-                     }}
-                    token={null}
-                    apiBaseUrl=""
-                />
-            )}
+{selectedEvent && (
+    <Popup
+        selectedProposal={mapCalendarToPopupProposal(selectedEvent)}
+        closePopup={closePopup}
+        onProposalUpdated={() => {
+            console.log("Proposal update action triggered from CalendarView Popup");
+            closePopup();
+         }}
+        currentUserRole="convener"
+    />
+)}
         </div>
     );
 };
