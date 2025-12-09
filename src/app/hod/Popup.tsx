@@ -9,7 +9,10 @@ import {
   MessageCircle, Send, FileDown, UploadCloud, Image as ImageIcon, Trash2, Link as LinkIcon
 } from 'lucide-react';
 
-// --- (Your existing interfaces remain unchanged) ---
+// Hardcoded Google Drive link constant
+const GOOGLE_DRIVE_LINK = 'https://drive.google.com/drive/folders/180uvZe9CmZyVAxu6oBGXeblO2RxX7Mu2?usp=sharing';
+
+// --- Interfaces ---
 interface BudgetItem {
   id: number;
   proposal_id: number;
@@ -95,7 +98,6 @@ interface Proposal {
   messages: Message[];
 }
 
-
 interface PopupProps {
   selectedProposal: Proposal | null;
   closePopup: () => void;
@@ -109,7 +111,7 @@ interface PopupProps {
   currentUserRole?: 'faculty' | 'hod' | 'dean' | 'chair' | 'vice_chair' | string;
 }
 
-// --- (Helper Components: DetailItem, PopupSkeleton remain unchanged) ---
+// --- Helper Components ---
 const DetailItem: React.FC<{ label: string; value?: string | number | null; children?: React.ReactNode; className?: string }> = ({ label, value, children, className = '' }) => {
   if (!children && (value === null || value === undefined || value === '')) return null;
   return (
@@ -142,20 +144,18 @@ const PopupSkeleton: React.FC = () => (
     </div>
 );
 
-// --- NEW/MODIFIED: PDF Options Modal Component ---
+// --- PDF Options Modal Component ---
 const PdfOptionsModal: React.FC<{
   isOpen: boolean;
   onClose: () => void;
   onGenerate: (
     photos: string[],
-    gdriveLink: string,
     proofs: boolean,
     attendance: boolean,
     brochure: boolean
   ) => void;
 }> = ({ isOpen, onClose, onGenerate }) => {
   const [photos, setPhotos] = useState<string[]>([]);
-  const [gdriveLink, setGdriveLink] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [proofsAttached, setProofsAttached] = useState(false);
   const [attendanceAndMembers, setAttendanceAndMembers] = useState(false);
@@ -184,10 +184,12 @@ const PdfOptionsModal: React.FC<{
     e.preventDefault();
     setIsDragging(true);
   };
+
   const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragging(false);
   };
+
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragging(false);
@@ -196,11 +198,10 @@ const PdfOptionsModal: React.FC<{
 
   useEffect(() => {
     if (!isOpen) {
-        setPhotos([]);
-        setGdriveLink('');
-        setProofsAttached(false);
-        setAttendanceAndMembers(false);
-        setBrochureAttached(false);
+      setPhotos([]);
+      setProofsAttached(false);
+      setAttendanceAndMembers(false);
+      setBrochureAttached(false);
     }
   }, [isOpen]);
 
@@ -218,40 +219,65 @@ const PdfOptionsModal: React.FC<{
           <h3 className="text-lg font-semibold text-gray-800">PDF Report Options</h3>
           <button onClick={onClose} className="text-gray-500 hover:text-red-600"><X size={24} /></button>
         </div>
+        
         <div className="p-6 flex-grow overflow-y-auto space-y-6">
+          {/* Google Drive Link - Clickable Display */}
           <div>
-            <label htmlFor="gdriveLink" className="block text-sm font-medium mb-2">
-              Google Drive Link (Optional)
+            <label className="block text-sm font-medium mb-2">
+              Google Drive Link (All documents will be uploaded here)
             </label>
             <div className="relative">
-              <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <input
-                type="url"
-                id="gdriveLink"
-                value={gdriveLink}
-                onChange={(e) => setGdriveLink(e.target.value)}
-                placeholder="https://drive.google.com/..."
-                className="input bg-blue-50 input-bordered w-full pl-10"
-              />
+              <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-blue-600" />
+              <a 
+                href={GOOGLE_DRIVE_LINK} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="flex items-center bg-blue-50 border border-blue-200 rounded-lg py-3 px-10 text-sm text-blue-700 hover:bg-blue-100 hover:border-blue-300 transition-colors w-full overflow-hidden"
+              >
+                <span className="truncate">{GOOGLE_DRIVE_LINK}</span>
+              </a>
             </div>
+            <p className="text-xs text-gray-500 mt-1">Click the link above to open the shared Google Drive folder</p>
           </div>
+
+          {/* Only 3 Original Checkboxes */}
           <div>
             <h4 className="text-sm font-medium text-gray-700 mb-2">Attached Documents Checklist</h4>
             <div className="space-y-2 rounded-md border p-3 bg-gray-50">
-                <label className="flex items-center cursor-pointer">
-                    <input type="checkbox" id="proofs" checked={proofsAttached} onChange={(e) => setProofsAttached(e.target.checked)} className="checkbox checkbox-sm checkbox-primary" />
-                    <span className="ml-2 text-sm text-gray-700">Proofs Attached</span>
-                </label>
-                <label className="flex items-center cursor-pointer">
-                    <input type="checkbox" id="attendance" checked={attendanceAndMembers} onChange={(e) => setAttendanceAndMembers(e.target.checked)} className="checkbox checkbox-sm checkbox-primary" />
-                    <span className="ml-2 text-sm text-gray-700">Attendance and Members Details</span>
-                </label>
-                <label className="flex items-center cursor-pointer">
-                    <input type="checkbox" id="brochure" checked={brochureAttached} onChange={(e) => setBrochureAttached(e.target.checked)} className="checkbox checkbox-sm checkbox-primary" />
-                    <span className="ml-2 text-sm text-gray-700">Brochure</span>
-                </label>
+              <label className="flex items-center cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  id="proofs" 
+                  checked={proofsAttached} 
+                  onChange={(e) => setProofsAttached(e.target.checked)} 
+                  className="checkbox checkbox-sm checkbox-primary" 
+                />
+                <span className="ml-2 text-sm text-gray-700">Proofs Attached</span>
+              </label>
+              <label className="flex items-center cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  id="attendance" 
+                  checked={attendanceAndMembers} 
+                  onChange={(e) => setAttendanceAndMembers(e.target.checked)} 
+                  className="checkbox checkbox-sm checkbox-primary" 
+                />
+                <span className="ml-2 text-sm text-gray-700">Attendance and Members Details</span>
+              </label>
+              <label className="flex items-center cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  id="brochure" 
+                  checked={brochureAttached} 
+                  onChange={(e) => setBrochureAttached(e.target.checked)} 
+                  className="checkbox checkbox-sm checkbox-primary" 
+                />
+                <span className="ml-2 text-sm text-gray-700">Brochure</span>
+              </label>
             </div>
           </div>
+          
+          {/* Photo Upload */}
           <div>
             <h4 className="text-sm font-medium text-gray-700 mb-2">Attach Photos (Optional)</h4>
             <div
@@ -276,6 +302,8 @@ const PdfOptionsModal: React.FC<{
               />
             </div>
           </div>
+
+          {/* Photo Previews */}
           {photos.length > 0 && (
             <div>
               <h4 className="font-semibold text-sm mb-2">Image Previews:</h4>
@@ -296,9 +324,14 @@ const PdfOptionsModal: React.FC<{
             </div>
           )}
         </div>
+
+        {/* Footer */}
         <div className="p-4 bg-gray-50 border-t flex justify-end gap-3">
           <button onClick={onClose} className="btn btn-ghost">Cancel</button>
-          <button onClick={() => onGenerate(photos, gdriveLink, proofsAttached, attendanceAndMembers, brochureAttached)} className="btn btn-primary">
+          <button 
+            onClick={() => onGenerate(photos, proofsAttached, attendanceAndMembers, brochureAttached)} 
+            className="btn btn-primary"
+          >
             Generate PDF
           </button>
         </div>
@@ -306,7 +339,6 @@ const PdfOptionsModal: React.FC<{
     </div>
   );
 };
-
 
 // --- Main Popup Component ---
 const Popup: React.FC<PopupProps> = ({
@@ -397,10 +429,9 @@ const Popup: React.FC<PopupProps> = ({
 
   const generatePdfWithOptions = (
     photos: string[] = [],
-    gdriveLink: string = '',
-    proofsAttached: boolean,
-    attendanceAndMembers: boolean,
-    brochureAttached: boolean
+    proofsAttached: boolean = false,
+    attendanceAndMembers: boolean = false,
+    brochureAttached: boolean = false
   ) => {
     if (!selectedProposal) return;
     setIsDownloading(true);
@@ -410,18 +441,16 @@ const Popup: React.FC<PopupProps> = ({
       ? `<h2>Photographs</h2><div style="margin-top: 15px;">${photos.map(src => `<img src="${src}" style="width: 100%; max-width: 700px; height: auto; margin-bottom: 15px; page-break-inside: avoid;" />`).join('')}</div>`
       : '<p><strong>17. Photographs:</strong> No photographs were attached.</p>';
 
-    const gdriveLinkHtml = gdriveLink.trim()
-      ? `<div class="section"><h2>Supporting Documents</h2><p><strong>Google Drive Link:</strong> <a href="${gdriveLink.trim()}" target="_blank" rel="noopener noreferrer">${gdriveLink.trim()}</a></p></div>`
-      : '';
+    const gdriveLinkHtml = `<div class="section"><h2>Supporting Documents</h2><p><strong>Google Drive Link:</strong> <a href="${GOOGLE_DRIVE_LINK}" target="_blank" rel="noopener noreferrer">${GOOGLE_DRIVE_LINK}</a></p></div>`;
       
     const attachmentsChecklistHtml = `
-      <div class="section">
-        <h2>Attachments Checklist</h2>
-        <p><strong>- Proofs Attached:</strong> ${proofsAttached ? 'Yes' : 'No'}</p>
-        <p><strong>- Attendance and Members Details:</strong> ${attendanceAndMembers ? 'Yes' : 'No'}</p>
-        <p><strong>- Brochure:</strong> ${brochureAttached ? 'Yes' : 'No'}</p>
-      </div>
-    `;
+  <div class="section">
+    <h2>Attachments Checklist</h2>
+    <p><strong>- Proofs Attached:</strong> ${proofsAttached ? 'Yes' : 'No'}</p>
+    <p><strong>- Attendance and Members Details:</strong> ${attendanceAndMembers ? 'Yes' : 'No'}</p>
+    <p><strong>- Brochure:</strong> ${brochureAttached ? 'Yes' : 'No'}</p>
+  </div>
+`;
 
     const reportHtml = `
       <html>

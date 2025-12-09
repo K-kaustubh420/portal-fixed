@@ -1,126 +1,165 @@
-"use client";
-
-// MODIFIED: Added useEffect to the import list
-import React, { useState, useId, useCallback, useRef, useEffect } from 'react'; 
-import axios, { AxiosError } from 'axios';
-import { motion, AnimatePresence } from 'framer-motion'; 
-import { format, isValid, differenceInCalendarDays, isPast, startOfDay, parseISO } from 'date-fns';
+import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { format, isValid, differenceInCalendarDays } from 'date-fns';
 import { useRouter } from 'next/navigation';
-
-import jsPDF from 'jspdf';
+import * as XLSX from 'xlsx';
 import {
-    X, User, Users, UserCheck, BedDouble, Car, FileText, Award, DollarSign,
-    Info, CalendarDays, AlertCircle, MessageSquare, Edit, UploadCloud,
-    PlusCircle, Trash2, CheckCircle, Send, AlertTriangle, RefreshCw, Ban,
-    Download, Image as ImageIcon 
+  X, User, Users, UserCheck, BedDouble, Car, FileText, Award, DollarSign, Info,
+  CalendarDays, AlertCircle, MessageSquare, Edit, Loader2, ThumbsUp, ThumbsDown,
+  MessageCircle, Send, FileDown, UploadCloud, Image as ImageIcon, Trash2, Link as LinkIcon
 } from 'lucide-react';
 
-// --- Interfaces (Your original code, unchanged) ---
+// Hardcoded Google Drive link constant
+const GOOGLE_DRIVE_LINK = 'https://drive.google.com/drive/folders/180uvZe9CmZyVAxu6oBGXeblO2RxX7Mu2?usp=sharing';
+
+// --- Interfaces ---
 interface BudgetItem {
-    id: number;
-    proposal_id: number;
-    category: string;
-    sub_category: string;
-    type: 'Domestic' | 'International' | null;
-    quantity: number;
-    cost: number;
-    amount: number;
-    status: string;
-    created_at: string;
-    updated_at: string;
+  id: number;
+  proposal_id: number;
+  category: string;
+  sub_category: string;
+  type: 'Domestic' | 'International' | null;
+  quantity: number;
+  cost: number;
+  amount: number;
+  status: string;
+  created_at: string;
+  updated_at: string;
 }
-interface ActualBillItemEdit {
-    localId: string;
-    originalId: number; 
-    category: string;
-    sub_category: string;
-    type: 'Domestic' | 'International' | null;
-    quantity: string;
-    cost: string;
-    amount: string;
-    notes?: string;
-}
+
 interface SponsorItem {
-    id: number; proposal_id: number; category: string; amount: number; reward: string;
-    mode: string; about: string; benefit: string; created_at: string; updated_at: string;
+  id: number;
+  proposal_id: number;
+  category: string;
+  amount: number;
+  reward: string;
+  mode: string;
+  about: string;
+  benefit: string;
+  created_at: string;
+  updated_at: string;
 }
+
 interface MessageUser {
-    id: number; name: string; email: string; role: string; designation?: string;
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+  designation?: string;
 }
+
 interface Message {
-    id: number; proposal_id: number; user_id: number; message: string;
-    created_at: string; updated_at: string; user: MessageUser;
+  id: number;
+  proposal_id: number;
+  user_id: number;
+  message: string;
+  created_at: string;
+  updated_at: string;
+  user: MessageUser;
 }
+
 interface Proposal {
-    id: string; title: string; description: string; category: string; status: string;
-    eventStartDate: string; eventEndDate: string; submissionTimestamp: string; date: string;
-    organizer: string; convenerName: string; convenerEmail?: string; convenerDesignation?: string;
-    participantExpected?: number | null; participantCategories?: string[] | null;
-    chiefGuestName?: string; chiefGuestDesignation?: string; chiefGuestAddress?: string;
-    chiefGuestPhone?: string; chiefGuestPan?: string; chiefGuestReason?: string;
-    hotelName?: string; hotelAddress?: string; hotelDuration?: number; hotelType?: 'srm' | 'others' | null;
-    travelName?: string; travelAddress?: string; travelDuration?: number; travelType?: 'srm' | 'others' | null;
-    estimatedBudget?: number;
-    fundingDetails: { universityFund?: number; registrationFund?: number; sponsorshipFund?: number; otherSourcesFund?: number; };
-    detailedBudget: BudgetItem[];
-    sponsorshipDetailsRows: SponsorItem[];
-    pastEvents?: string | null; relevantDetails?: string | null; awaiting?: string | null; messages: Message[];
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  status: string;
+  eventStartDate: string;
+  eventEndDate: string;
+  submissionTimestamp: string;
+  date: string;
+  organizer: string;
+  convenerName: string;
+  convenerEmail?: string;
+  convenerDesignation?: string;
+  participantExpected?: number | null;
+  participantCategories?: string[] | null;
+  chiefGuestName?: string;
+  chiefGuestDesignation?: string;
+  chiefGuestAddress?: string;
+  chiefGuestPhone?: string;
+  chiefGuestPan?: string;
+  chiefGuestReason?: string;
+  hotelName?: string;
+  hotelAddress?: string;
+  hotelDuration?: number;
+  hotelType?: 'srm' | 'others' | null;
+  travelName?: string;
+  travelAddress?: string;
+  travelDuration?: number;
+  travelType?: 'srm' | 'others' | null;
+  estimatedBudget?: number;
+  fundingDetails: { universityFund?: number; registrationFund?: number; sponsorshipFund?: number; otherSourcesFund?: number; };
+  detailedBudget: BudgetItem[];
+  sponsorshipDetailsRows: SponsorItem[];
+  pastEvents?: string | null;
+  relevantDetails?: string | null;
+  awaiting?: string | null;
+  messages: Message[];
 }
+
 interface PopupProps {
-    selectedProposal: Proposal;
-    closePopup: () => void;
-    onProposalUpdated?: () => void;
-    token: string | null;
-    apiBaseUrl: string;
+  selectedProposal: Proposal | null;
+  closePopup: () => void;
+  onAccept?: (proposalId: string) => Promise<void> | void;
+  onReject?: (proposalId: string, reason: string) => Promise<void> | void;
+  onReview?: (proposalId: string, comments: string) => Promise<void> | void;
+  isLoading?: boolean;
+  errorMessage?: string | null;
+  isDetailLoading?: boolean;
+  onProposalUpdated?: () => void;
+  currentUserRole?: 'faculty' | 'hod' | 'dean' | 'chair' | 'vice_chair' | string;
 }
 
-// --- Constants for Dropdowns (Your original code, unchanged) ---
-const BUDGET_CATEGORIES = [
-    "Budgetary Expenditures", "Publicity", "General", "Honorarium",
-    "Hospitality", "Inaugural and Valedictory", "Resource Materials",
-    "Conference Paper Publication", "Miscellaneous"
-];
-const SUB_CATEGORIES: Record<string, string[]> = {
-    "Budgetary Expenditures": ["Number of Sessions Planned", "Number of Keynote Speakers", "Number of Session Judges", "Number of Celebrities / Chief Guests"],
-    "Publicity": ["Invitation", "Press Coverage", "Brochures/Flyers", "Website/Social Media"],
-    "General": ["Conference Kits", "Printing and Stationery", "Secretarial Expenses", "Mementos", "Certificates"],
-    "Honorarium": ["Keynote Speakers", "Session Judges", "Chief Guests", "Invited Speakers"],
-    "Hospitality": ["Train / Flight for Chief Guest / Keynote Speakers", "Accommodation for Chief Guest / Keynote Speakers", "Food and Beverages for Chief Guest / Keynote Speakers", "Local Travel Expenses", "Food for Participants", "Food & Snacks for Volunteers / Organizers", "Hostel Accommodation"],
-    "Inaugural and Valedictory": ["Banners, Pandal etc", "Lighting and Decoration", "Flower Bouquet", "Cultural Events", "Field Visits / Sightseeing"],
-    "Resource Materials": ["Preparation, Printing, Binding", "Software/Licenses"],
-    "Conference Paper Publication": ["Extended Abstract", "Full Paper", "Journal Publication Fees", "Proceedings"],
-    "Miscellaneous": ["Contingency", "Bank Charges", "Other Unforeseen"]
-};
-const SUB_CATEGORY_DISPLAY_NAMES: Record<string, string> = {
-    "Number of Sessions Planned": "Sessions Planned", "Number of Keynote Speakers": "Keynote Speakers", "Number of Session Judges": "Session Judges", "Number of Celebrities / Chief Guests": "Celebrities/Guests",
-    "Train / Flight for Chief Guest / Keynote Speakers": "Travel (Guests)", "Accommodation for Chief Guest / Keynote Speakers": "Accommodation (Guests)", "Food and Beverages for Chief Guest / Keynote Speakers": "Food (Guests)",
-    "Food for Participants": "Food (Participants)", "Food & Snacks for Volunteers / Organizers": "Food/Snacks (Team)", "Banners, Pandal etc": "Banners/Pandal", "Printing and Stationery": "Printing/Stationery",
-    "Preparation, Printing, Binding": "Preparation/Printing"
-};
-
-// --- Helper Component: DetailItem (Your original code, unchanged) ---
+// --- Helper Components ---
 const DetailItem: React.FC<{ label: string; value?: string | number | null; children?: React.ReactNode; className?: string }> = ({ label, value, children, className = '' }) => {
-    const isEmpty = !children && (value === null || value === undefined || value === '' || (typeof value === 'number' && isNaN(value)));
-    if (isEmpty) { return null; }
-    return (<div className={className}><p className="text-sm font-semibold text-gray-700">{label}:</p>{children ? <div className="text-sm text-gray-600 mt-0.5">{children}</div> : <p className="text-sm text-gray-600 whitespace-pre-wrap">{value}</p>}</div>);
+  if (!children && (value === null || value === undefined || value === '')) return null;
+  return (
+    <div className={className}>
+      <p className="text-sm font-semibold text-gray-700">{label}:</p>
+      {children ? <div className="text-sm text-gray-600 mt-0.5">{children}</div> : <p className="text-sm text-gray-600 whitespace-pre-wrap">{value}</p>}
+    </div>
+  );
 };
 
-// --- Helper Function: Format Currency (Your original code, unchanged) ---
-const formatCurrency = (value: number | string | null | undefined): string => {
-    if (value === null || value === undefined || value === '') return 'N/A';
-    const num = Number(value);
-    if (isNaN(num)) return 'N/A';
-    return num.toLocaleString('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 2, maximumFractionDigits: 2 });
-};
+const PopupSkeleton: React.FC = () => (
+    <div className="bg-white rounded-lg border-t-4 border-blue-700 shadow-xl w-full max-w-5xl mx-auto max-h-[90vh] flex flex-col animate-pulse">
+        <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+            <div className="h-6 bg-gray-300 rounded w-3/4"></div>
+            <div className="h-6 w-6 bg-gray-300 rounded-full"></div>
+        </div>
+        <div className="p-6 flex-grow">
+            <div className="space-y-4">
+                <div className="h-4 bg-gray-300 rounded w-1/2"></div>
+                <div className="h-4 bg-gray-200 rounded w-full"></div>
+                <div className="h-4 bg-gray-200 rounded w-5/6"></div>
+                <div className="h-4 bg-gray-300 rounded w-1/3 mt-6"></div>
+                <div className="h-4 bg-gray-200 rounded w-full"></div>
+                <div className="h-4 bg-gray-200 rounded w-4/6"></div>
+            </div>
+        </div>
+        <div className="p-4 border-t border-gray-200 bg-gray-50">
+            <div className="h-8 bg-gray-300 rounded w-1/4 float-right"></div>
+        </div>
+    </div>
+);
 
-// --- NEW Photo Upload Modal Component ---
-const PhotoUploadModal: React.FC<{
+// --- PDF Options Modal Component ---
+const PdfOptionsModal: React.FC<{
   isOpen: boolean;
   onClose: () => void;
-  onGenerate: (photos: string[]) => void;
+  onGenerate: (
+    photos: string[],
+    proofs: boolean,
+    attendance: boolean,
+    brochure: boolean
+  ) => void;
 }> = ({ isOpen, onClose, onGenerate }) => {
   const [photos, setPhotos] = useState<string[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [proofsAttached, setProofsAttached] = useState(false);
+  const [attendanceAndMembers, setAttendanceAndMembers] = useState(false);
+  const [brochureAttached, setBrochureAttached] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (files: FileList | null) => {
@@ -141,570 +180,687 @@ const PhotoUploadModal: React.FC<{
     setPhotos(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => { e.preventDefault(); setIsDragging(true); };
-  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => { e.preventDefault(); setIsDragging(false); };
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => { e.preventDefault(); setIsDragging(false); handleFileChange(e.dataTransfer.files); };
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+    handleFileChange(e.dataTransfer.files);
+  };
 
   useEffect(() => {
-    if (!isOpen) { setPhotos([]); }
+    if (!isOpen) {
+      setPhotos([]);
+      setProofsAttached(false);
+      setAttendanceAndMembers(false);
+      setBrochureAttached(false);
+    }
   }, [isOpen]);
 
+  if (!isOpen) return null;
+
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center backdrop-blur-sm bg-black bg-opacity-40 p-4">
-          <motion.div 
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.9, opacity: 0 }}
-            className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col"
-          >
-            <div className="flex justify-between items-center p-4 border-b">
-              <h3 className="text-lg font-semibold text-gray-800">Attach Photos (Optional)</h3>
-              <button onClick={onClose} className="text-gray-500 hover:text-red-600"><X size={24} /></button>
-            </div>
-            <div className="p-6 flex-grow overflow-y-auto">
-              <div
-                className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${isDragging ? 'border-indigo-500 bg-indigo-50' : 'border-gray-300 bg-gray-50'}`}
-                onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
-              >
-                <UploadCloud className="mx-auto h-12 w-12 text-gray-400" />
-                <p className="mt-2 text-sm text-gray-600">Drag & drop images here</p>
-                <p className="text-xs text-gray-500">or</p>
-                <button onClick={() => fileInputRef.current?.click()} className="btn btn-sm btn-outline mt-2">
-                  Browse Files
-                </button>
-                <input type="file" ref={fileInputRef} multiple accept="image/*" className="hidden" onChange={(e) => handleFileChange(e.target.files)} />
-              </div>
-              {photos.length > 0 && (
-                <div className="mt-6">
-                  <h4 className="font-semibold text-sm mb-2">Image Previews:</h4>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                    {photos.map((photo, index) => (
-                      <div key={index} className="relative group border rounded-md overflow-hidden">
-                        <img src={photo} alt={`preview ${index}`} className="h-28 w-full object-cover" />
-                        <button onClick={() => removePhoto(index)} className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity" aria-label="Remove image">
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="p-4 bg-gray-50 border-t flex justify-end gap-3">
-              <button onClick={onClose} className="btn btn-ghost">Cancel</button>
-              <button onClick={() => onGenerate([])} className="btn btn-outline">Skip & Generate PDF</button>
-              <button onClick={() => onGenerate(photos)} className="btn btn-primary" disabled={photos.length === 0}>
-                Generate with {photos.length} Photo{photos.length !== 1 ? 's' : ''}
-              </button>
-            </div>
-          </motion.div>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center backdrop-blur-sm bg-black bg-opacity-40 p-4">
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.9, opacity: 0 }}
+        className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col"
+      >
+        <div className="flex justify-between items-center p-4 border-b">
+          <h3 className="text-lg font-semibold text-gray-800">PDF Report Options</h3>
+          <button onClick={onClose} className="text-gray-500 hover:text-red-600"><X size={24} /></button>
         </div>
-      )}
-    </AnimatePresence>
+        
+        <div className="p-6 flex-grow overflow-y-auto space-y-6">
+          {/* Google Drive Link - Clickable Display */}
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              Google Drive Link (All documents will be uploaded here)
+            </label>
+            <div className="relative">
+              <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-blue-600" />
+              <a 
+                href={GOOGLE_DRIVE_LINK} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="flex items-center bg-blue-50 border border-blue-200 rounded-lg py-3 px-10 text-sm text-blue-700 hover:bg-blue-100 hover:border-blue-300 transition-colors w-full overflow-hidden"
+              >
+                <span className="truncate">{GOOGLE_DRIVE_LINK}</span>
+              </a>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">Click the link above to open the shared Google Drive folder</p>
+          </div>
+
+          {/* Only 3 Original Checkboxes */}
+          <div>
+            <h4 className="text-sm font-medium text-gray-700 mb-2">Attached Documents Checklist</h4>
+            <div className="space-y-2 rounded-md border p-3 bg-gray-50">
+              <label className="flex items-center cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  id="proofs" 
+                  checked={proofsAttached} 
+                  onChange={(e) => setProofsAttached(e.target.checked)} 
+                  className="checkbox checkbox-sm checkbox-primary" 
+                />
+                <span className="ml-2 text-sm text-gray-700">Proofs Attached</span>
+              </label>
+              <label className="flex items-center cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  id="attendance" 
+                  checked={attendanceAndMembers} 
+                  onChange={(e) => setAttendanceAndMembers(e.target.checked)} 
+                  className="checkbox checkbox-sm checkbox-primary" 
+                />
+                <span className="ml-2 text-sm text-gray-700">Attendance and Members Details</span>
+              </label>
+              <label className="flex items-center cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  id="brochure" 
+                  checked={brochureAttached} 
+                  onChange={(e) => setBrochureAttached(e.target.checked)} 
+                  className="checkbox checkbox-sm checkbox-primary" 
+                />
+                <span className="ml-2 text-sm text-gray-700">Brochure</span>
+              </label>
+            </div>
+          </div>
+          
+          {/* Photo Upload */}
+          <div>
+            <h4 className="text-sm font-medium text-gray-700 mb-2">Attach Photos (Optional)</h4>
+            <div
+              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${isDragging ? 'border-indigo-500 bg-indigo-50' : 'border-gray-300 bg-gray-50'}`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
+              <UploadCloud className="mx-auto h-12 w-12 text-gray-400" />
+              <p className="mt-2 text-sm text-gray-600">Drag & drop images here</p>
+              <p className="text-xs text-gray-500">or</p>
+              <button onClick={() => fileInputRef.current?.click()} className="btn btn-sm btn-outline mt-2">
+                Browse Files
+              </button>
+              <input
+                type="file"
+                ref={fileInputRef}
+                multiple
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => handleFileChange(e.target.files)}
+              />
+            </div>
+          </div>
+
+          {/* Photo Previews */}
+          {photos.length > 0 && (
+            <div>
+              <h4 className="font-semibold text-sm mb-2">Image Previews:</h4>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                {photos.map((photo, index) => (
+                  <div key={index} className="relative group border rounded-md overflow-hidden">
+                    <img src={photo} alt={`preview ${index}`} className="h-28 w-full object-cover" />
+                    <button
+                      onClick={() => removePhoto(index)}
+                      className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                      aria-label="Remove image"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="p-4 bg-gray-50 border-t flex justify-end gap-3">
+          <button onClick={onClose} className="btn btn-ghost">Cancel</button>
+          <button 
+            onClick={() => onGenerate(photos, proofsAttached, attendanceAndMembers, brochureAttached)} 
+            className="btn btn-primary"
+          >
+            Generate PDF
+          </button>
+        </div>
+      </motion.div>
+    </div>
   );
 };
 
-
 // --- Main Popup Component ---
-const Popup: React.FC<PopupProps> = ({ selectedProposal, closePopup, onProposalUpdated, token, apiBaseUrl }) => {
-    console.log(selectedProposal);
-    const router = useRouter();
-    const actualBillBaseId = useId();
+const Popup: React.FC<PopupProps> = ({
+  selectedProposal,
+  closePopup,
+  onAccept,
+  onReject,
+  onReview,
+  isLoading = false,
+  errorMessage = null,
+  isDetailLoading = false,
+  onProposalUpdated,
+  currentUserRole
+}) => {
+  const [rejectionInput, setRejectionInput] = useState('');
+  const [reviewInput, setReviewInput] = useState('');
+  const [isRejecting, setIsRejecting] = useState(false);
+  const [isReviewing, setIsReviewing] = useState(false);
+  const [localErrorMessage, setLocalErrorMessage] = useState<string | null>(null);
+  const [isClient, setIsClient] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [isPdfOptionsModalOpen, setIsPdfOptionsModalOpen] = useState(false);
 
-    // --- All your original states and functions are untouched ---
-    const [isLoading, setIsLoading] = useState(false);
-    const [errorMessage, setErrorMessage] = useState<string | null>(null);
-    const [isEnteringBill, setIsEnteringBill] = useState(false);
-    const [actualBillItems, setActualBillItems] = useState<ActualBillItemEdit[]>([]);
-    const [isSubmittingActualBill, setIsSubmittingActualBill] = useState(false);
-    const [actualBillError, setActualBillError] = useState<string | null>(null);
-    const [billFormErrors, setBillFormErrors] = useState<Record<string, string | undefined>>({});
-    const [showCancelForm, setShowCancelForm] = useState(false);
-    const [cancelReason, setCancelReason] = useState("");
-    const [isSubmittingCancel, setIsSubmittingCancel] = useState(false);
-    const [cancelApiError, setCancelApiError] = useState<string | null>(null);
-    const [showRescheduleForm, setShowRescheduleForm] = useState(false);
-    const [rescheduleReason, setRescheduleReason] = useState("");
-    const [rescheduleFrom, setRescheduleFrom] = useState("");
-    const [rescheduleTo, setRescheduleTo] = useState("");
-    const [isSubmittingReschedule, setIsSubmittingReschedule] = useState(false);
-    const [rescheduleApiError, setRescheduleApiError] = useState<string | null>(null);
-    const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false); 
+  useEffect(() => {
+    setIsRejecting(false);
+    setIsReviewing(false);
+    setRejectionInput('');
+    setReviewInput('');
+    setLocalErrorMessage(null);
+  }, [selectedProposal]);
 
-    const formatDateSafe = (dateString: string | null | undefined, formatString: string = 'dd-MM-yyyy hh:mm a'): string => {
-        if (!dateString) return 'N/A';
-        try { const dateObj = new Date(dateString); if (isValid(dateObj)) return format(dateObj, formatString); } catch (e) { /* ignore */ }
-        return 'Invalid Date';
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  const formatDateSafe = (dateString: string | null | undefined, formatString = 'dd-MM-yyyy hh:mm a'): string => {
+    if (!dateString) return 'N/A';
+    try {
+      const d = new Date(dateString);
+      return isValid(d) ? format(d, formatString) : 'Invalid Date';
+    } catch {
+      return 'Invalid Date';
+    }
+  };
+
+  const calculateDuration = (): string => {
+    if (!selectedProposal) return 'N/A';
+    try {
+      const start = new Date(selectedProposal.eventStartDate);
+      const end = new Date(selectedProposal.eventEndDate);
+      if (isValid(start) && isValid(end) && end >= start) {
+        const days = differenceInCalendarDays(end, start) + 1;
+        return `${days} day${days !== 1 ? 's' : ''}`;
+      }
+    } catch {
+      return 'N/A';
+    }
+    return 'N/A';
+  };
+  
+  const formatCurrency = (value: number | null | undefined): string => {
+    if (value == null) return 'N/A';
+    return value.toLocaleString('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  };
+  
+  const formatRole = (role: string | null | undefined): string => {
+    if (!role) return 'N/A';
+    return role.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  };
+  
+  const canHodAct = currentUserRole === 'hod' &&
+    ['pending', 'review'].includes(selectedProposal?.status || '') &&
+    (!selectedProposal?.awaiting || selectedProposal.awaiting.toLowerCase() === 'hod');
+
+  const eventDuration = calculateDuration();
+
+  const handleRejectClick = () => { setIsRejecting(true); setIsReviewing(false); setLocalErrorMessage(null); };
+  const handleReviewClick = () => { setIsReviewing(true); setIsRejecting(false); setLocalErrorMessage(null); };
+  const cancelAction = () => { setIsRejecting(false); setIsReviewing(false); setRejectionInput(''); setReviewInput(''); setLocalErrorMessage(null); };
+  const executeAccept = async () => { if (onAccept && selectedProposal) { setLocalErrorMessage(null); await onAccept(selectedProposal.id); } };
+  const executeReject = async () => { if (!rejectionInput.trim()) { setLocalErrorMessage("Rejection reason cannot be empty."); return; } if (onReject && selectedProposal) { setLocalErrorMessage(null); await onReject(selectedProposal.id, rejectionInput); } };
+  const executeReview = async () => { if (!reviewInput.trim()) { setLocalErrorMessage("Review comments cannot be empty."); return; } if (onReview && selectedProposal) { setLocalErrorMessage(null); await onReview(selectedProposal.id, reviewInput); } };
+
+  const handleDownloadPdf = () => {
+    if (!selectedProposal) return;
+    setIsPdfOptionsModalOpen(true);
+  };
+
+  const generatePdfWithOptions = (
+    photos: string[] = [],
+    proofsAttached: boolean = false,
+    attendanceAndMembers: boolean = false,
+    brochureAttached: boolean = false
+  ) => {
+    if (!selectedProposal) return;
+    setIsDownloading(true);
+    setIsPdfOptionsModalOpen(false);
+
+    const photosHtml = photos.length > 0
+      ? `<h2>Photographs</h2><div style="margin-top: 15px;">${photos.map(src => `<img src="${src}" style="width: 100%; max-width: 700px; height: auto; margin-bottom: 15px; page-break-inside: avoid;" />`).join('')}</div>`
+      : '<p><strong>17. Photographs:</strong> No photographs were attached.</p>';
+
+    const gdriveLinkHtml = `<div class="section"><h2>Supporting Documents</h2><p><strong>Google Drive Link:</strong> <a href="${GOOGLE_DRIVE_LINK}" target="_blank" rel="noopener noreferrer">${GOOGLE_DRIVE_LINK}</a></p></div>`;
+      
+    const attachmentsChecklistHtml = `
+  <div class="section">
+    <h2>Attachments Checklist</h2>
+    <p><strong>- Proofs Attached:</strong> ${proofsAttached ? 'Yes' : 'No'}</p>
+    <p><strong>- Attendance and Members Details:</strong> ${attendanceAndMembers ? 'Yes' : 'No'}</p>
+    <p><strong>- Brochure:</strong> ${brochureAttached ? 'Yes' : 'No'}</p>
+  </div>
+`;
+
+    const reportHtml = `
+      <html>
+        <head>
+          <title>Event Report: ${selectedProposal.title}</title>
+          <style>
+            body { font-family: Arial, sans-serif; font-size: 12px; line-height: 1.6; color: #333; }
+            h1 { font-size: 20px; color: #1a237e; text-align: center; margin-bottom: 20px; }
+            h2 { font-size: 16px; border-bottom: 1px solid #ccc; padding-bottom: 5px; margin-top: 25px; }
+            h3 { font-size: 14px; margin-top: 20px; }
+            p { margin: 5px 0; }
+            strong { font-weight: bold; }
+            a { color: #0000EE; text-decoration: underline; }
+            .content { max-width: 800px; margin: auto; } .section { margin-bottom: 15px; page-break-inside: avoid; }
+            .financial-item { padding-left: 20px; } .signature { margin-top: 40px; }
+          </style>
+        </head>
+        <body>
+          <div class="content">
+            <h1>Event Report: ${selectedProposal.title}</h1>
+            <div class="section">
+              <h2>POST EVENT REPORT</h2>
+              <p><strong>1. Name and Designation of Conveners:</strong> ${selectedProposal.convenerName} (${selectedProposal.convenerDesignation || 'N/A'})</p>
+              <p><strong>2. Conducting Department:</strong> ${selectedProposal.organizer}</p>
+              <p><strong>3. Date and Duration:</strong> ${formatDateSafe(selectedProposal.eventStartDate, 'dd-MM-yyyy')} to ${formatDateSafe(selectedProposal.eventEndDate, 'dd-MM-yyyy')} (${eventDuration})</p>
+              <p><strong>4. Type of event:</strong> ${formatRole(selectedProposal.category)}</p>
+              <p><strong>5. Mode of Conduction:</strong> N/A</p><p><strong>6. Association:</strong> N/A</p>
+              <p><strong>7. Total Registered Participants:</strong> ${selectedProposal.participantExpected ?? 'N/A'}</p>
+              <p><strong>8. Internal/External participants:</strong> Internal- N/A, External- N/A</p>
+              <p><strong>9. Male/Female participants:</strong> Male- N/A, Female- N/A</p>
+              <p><strong>10. Participant Categories:</strong> ${selectedProposal.participantCategories?.join(', ') || 'N/A'}</p>
+              <p><strong>11. About the Workshop (Theme/Objective):</strong> ${selectedProposal.description || 'N/A'}</p>
+              <p><strong>12. Targeted Audience:</strong> ${selectedProposal.participantCategories?.join(', ') || 'N/A'}</p>
+              <p><strong>13. Number of Technical Sessions:</strong> N/A</p><p><strong>14. Session Details:</strong> N/A</p>
+              <p><strong>15. Event Outcome:</strong> ${selectedProposal.relevantDetails || 'N/A'}</p>
+              <p><strong>16. Feedback Collected:</strong> N/A</p>
+            </div>
+            <div class="section">
+              <h3>18. Financial statement:</h3>
+              <p class="financial-item"><strong>External Sponsoring Agency:</strong> ${formatCurrency(selectedProposal.fundingDetails?.sponsorshipFund)}</p>
+              <p class="financial-item"><strong>Contribution from University:</strong> ${formatCurrency(selectedProposal.fundingDetails?.universityFund)}</p>
+              <p class="financial-item"><strong>Income through Registration:</strong> ${formatCurrency(selectedProposal.fundingDetails?.registrationFund)}</p>
+              <p class="financial-item"><strong>Total Expenditure incurred:</strong> ${formatCurrency(selectedProposal.estimatedBudget)}</p>
+              <p class="financial-item"><strong>Amount returned to University:</strong> N/A</p>
+            </div>
+            ${attachmentsChecklistHtml}
+            ${gdriveLinkHtml}
+            <div class="section">
+              ${photosHtml}
+            </div>
+            <p class="signature"><strong>19. Signature of Conveners:</strong></p>
+            <p class="signature"><strong>20. Signature of Dept. Event Coordinator:</strong></p>
+            <p class="signature"><strong>21. Signature of HOD:</strong></p>
+          </div>
+        </body>
+      </html>`;
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(reportHtml);
+      printWindow.document.close();
+      setTimeout(() => { printWindow.focus(); printWindow.print(); printWindow.close(); setIsDownloading(false); }, 250);
+    } else {
+      setLocalErrorMessage("Could not open a new window. Please disable your pop-up blocker.");
+      setIsDownloading(false);
+    }
+  };
+  
+  const handleDownloadExcel = () => {
+    if (!selectedProposal) return;
+    setIsDownloading(true);
+
+    const formatCurrencyForExcel = (value: number | null | undefined): number | string => {
+        if (value == null) return 'N/A';
+        return value;
     };
-    const toDatetimeLocalInputString = (dateString: string | null | undefined): string => {
-        if (!dateString) return "";
-        try { const date = new Date(dateString); if (isValid(date)) return format(date, "yyyy-MM-dd'T'HH:mm"); } catch (e) {/* ignore */ }
-        return "";
-    };
 
-    const calculateDuration = useCallback(() => {
-        try { const start = new Date(selectedProposal.eventStartDate); const end = new Date(selectedProposal.eventEndDate); if (isValid(start) && isValid(end) && end >= start) { const days = differenceInCalendarDays(end, start) + 1; return `${days} day${days !== 1 ? 's' : ''}`; } } catch (e) { /* ignore */ } return 'N/A';
-    }, [selectedProposal.eventStartDate, selectedProposal.eventEndDate]);
-    const eventDuration = calculateDuration();
-    const formatRole = (role: string | null | undefined): string => { if (!role) return 'N/A'; return role.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()); };
-    const generateLocalId = useCallback(() => `row-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`, []);
-
-    const canEnterBill = useCallback((): boolean => {
-        if (selectedProposal.status !== 'approved') return false;
-        try { const eventEndDate = new Date(selectedProposal.eventEndDate); return isValid(eventEndDate) && isPast(startOfDay(eventEndDate)); } catch (e) { return false; }
-    }, [selectedProposal.status, selectedProposal.eventEndDate]);
-    const showBillEntryButton = canEnterBill();
-    const canModifyProposal = selectedProposal && ['pending', 'review', 'approved'].includes(selectedProposal.status) && selectedProposal.status !== 'completed';
-
-    const resetForms = () => {
-        setIsEnteringBill(false); setActualBillItems([]); setActualBillError(null); setBillFormErrors({});
-        setShowCancelForm(false); setCancelReason(""); setCancelApiError(null);
-        setShowRescheduleForm(false); setRescheduleReason(""); setRescheduleFrom(""); setRescheduleTo(""); setRescheduleApiError(null);
-        setErrorMessage(null);
-    };
-
-    const startBillEntry = () => {
-        resetForms();
-        const initialBillItems = selectedProposal.detailedBudget.map(item => ({
-            localId: generateLocalId(), originalId: item.id, category: item.category, sub_category: item.sub_category,
-            type: item.type, quantity: String(item.quantity), cost: String(item.cost), amount: String(item.amount), notes: '',
-        }));
-        if (initialBillItems.length === 0) {
-            setActualBillItems([{ localId: generateLocalId(), originalId: 0, category: '', sub_category: '', type: null, quantity: '', cost: '', amount: '0', notes: '' }]);
-        } else { setActualBillItems(initialBillItems); }
-        setIsEnteringBill(true);
-    };
-
-    const openCancelForm = () => {
-        resetForms();
-        setShowCancelForm(true);
-    };
-
-    const openRescheduleForm = () => {
-        resetForms();
-        setRescheduleFrom(toDatetimeLocalInputString(selectedProposal.eventStartDate));
-        setRescheduleTo(toDatetimeLocalInputString(selectedProposal.eventEndDate));
-        setShowRescheduleForm(true);
-    };
-
-    const handlePopupCloseAction = () => {
-        if (isEnteringBill || showCancelForm || showRescheduleForm) {
-            resetForms(); 
-        } else {
-            closePopup(); 
-        }
-    };
-
-    const addActualBillRow = () => { setActualBillItems(prev => [...prev, { localId: generateLocalId(), originalId: 0, category: '', sub_category: '', type: null, quantity: '', cost: '', amount: '0', notes: '' }]); };
-    const deleteActualBillRow = (idToDelete: string) => {
-        setActualBillItems(prev => prev.filter(row => row.localId !== idToDelete));
-        setBillFormErrors(prevErrors => { const newErrors = { ...prevErrors }; const keysToDelete = [`bill_category_${idToDelete}`, `bill_sub_category_${idToDelete}`, `bill_type_${idToDelete}`, `bill_quantity_${idToDelete}`, `bill_cost_${idToDelete}`, `bill_notes_${idToDelete}`]; keysToDelete.forEach(key => delete newErrors[key]); return newErrors; });
-    };
-    const handleActualBillChange = (idToUpdate: string, field: keyof ActualBillItemEdit, value: string | 'Domestic' | 'International' | null) => {
-        setActualBillItems(prevRows => prevRows.map(row => {
-            if (row.localId === idToUpdate) {
-                const updatedRow = { ...row, [field]: value };
-                if (field === 'quantity' || field === 'cost') { const quantity = parseFloat(updatedRow.quantity) || 0; const cost = parseFloat(updatedRow.cost) || 0; updatedRow.amount = (quantity * cost).toFixed(2); }
-                if (field === 'type') { updatedRow.type = (value === 'Domestic' || value === 'International') ? value : null; }
-                if (field === 'category') { updatedRow.sub_category = ''; } 
-                const errorKey = `bill_${field}_${idToUpdate}`; if (billFormErrors[errorKey]) { setBillFormErrors(prevErrors => ({ ...prevErrors, [errorKey]: undefined })); }
-                return updatedRow;
-            } return row;
-        }));
-    };
-    const totalActualBillAmount = actualBillItems.reduce((sum, row) => sum + (parseFloat(row.amount) || 0), 0);
-    const validateActualBillForm = (): boolean => {
-        const errors: Record<string, string> = {};
-        if (actualBillItems.length === 0) { errors.global = "Please add at least one actual expense item."; }
-        else { actualBillItems.forEach((row) => { const id = row.localId; if (!row.category) errors[`bill_category_${id}`] = "Category required."; if (!row.sub_category) errors[`bill_sub_category_${id}`] = "Subcategory required."; if (!row.quantity || parseFloat(row.quantity) <= 0) errors[`bill_quantity_${id}`] = "Valid Qty (>0) required."; if (!row.cost || parseFloat(row.cost) < 0) errors[`bill_cost_${id}`] = "Valid Cost (>=0) required."; }); }
-        setBillFormErrors(errors); return Object.keys(errors).length === 0;
-    };
-    const handleActualBillSubmit = async () => {
-        setActualBillError(null);
-        if (!validateActualBillForm()) { setActualBillError("Please fix the errors indicated in the form."); return; }
-        if (!token) { setActualBillError("Authentication error: Not logged in."); return; }
-
-        setIsSubmittingActualBill(true);
-        const itemsPayload = actualBillItems.filter(item => item.category && item.sub_category && item.quantity && item.cost)
-            .map(item => ({
-                id: item.originalId, category: item.category, sub_category: item.sub_category, type: item.type,
-                quantity: Number(item.quantity) || 0, cost: Number(item.cost) || 0, amount: Number(item.amount) || 0, status: 'actual',
-            }));
-
-        if (itemsPayload.length === 0 && actualBillItems.length > 0) { setActualBillError("No valid bill items to submit. Ensure required fields are filled."); setIsSubmittingActualBill(false); return; }
-        if (itemsPayload.length === 0 && actualBillItems.length === 0) { setActualBillError("Cannot submit an empty bill."); setIsSubmittingActualBill(false); return; }
-        
-        const requestBody = { items: itemsPayload };
-        try {
-            await axios.put(`${apiBaseUrl}/api/faculty/proposals/${selectedProposal.id}`, requestBody, { headers: { Authorization: `Bearer ${token}` } });
-            alert('Actual Bill submitted successfully!');
-            resetForms(); if (onProposalUpdated) onProposalUpdated();
-        } catch (err) {
-            const errorMsg = err instanceof AxiosError && err.response?.data?.message ? `Submission failed: ${err.response.data.message}` : "Failed to submit actual bill. Please try again.";
-            setActualBillError(errorMsg); alert(errorMsg);
-        } finally { setIsSubmittingActualBill(false); }
-    };
-
-    const handleCancelProposalSubmit = async () => {
-        if (!cancelReason.trim()) { setCancelApiError("Reason for cancellation is required."); return; }
-        if (!token) { setCancelApiError("Authentication error: Not logged in."); return; }
-        setIsSubmittingCancel(true); setCancelApiError(null);
-        try {
-            await axios.put(`${apiBaseUrl}/api/faculty/proposals/${selectedProposal.id}/cancel`,
-                { message: cancelReason },
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
-            alert('Proposal cancelled successfully!');
-            resetForms();
-            if (onProposalUpdated) onProposalUpdated();
-            closePopup(); 
-        } catch (err) {
-            const errorMsg = err instanceof AxiosError && err.response?.data?.message ? `Cancellation failed: ${err.response.data.message}` : "Failed to cancel proposal. Please try again.";
-            setCancelApiError(errorMsg); alert(errorMsg);
-        } finally { setIsSubmittingCancel(false); }
-    };
-
-    const handleRescheduleProposalSubmit = async () => {
-        setRescheduleApiError(null);
-        if (!rescheduleReason.trim()) { setRescheduleApiError("Reason for rescheduling is required."); return; }
-        if (!rescheduleFrom || !rescheduleTo) { setRescheduleApiError("Both new start and end dates are required."); return; }
-
-        let fromDate, toDate;
-        try {
-            fromDate = parseISO(rescheduleFrom);
-            toDate = parseISO(rescheduleTo);
-            if (!isValid(fromDate) || !isValid(toDate)) throw new Error("Invalid date format.");
-            if (toDate < fromDate) { setRescheduleApiError("New end date must be after or same as new start date."); return; }
-            if (isPast(fromDate) && differenceInCalendarDays(startOfDay(fromDate), startOfDay(new Date())) < 0) {
-                 setRescheduleApiError("New start date cannot be in the past."); return;
-            }
-        } catch (e) {
-            setRescheduleApiError("Invalid date format provided. Please check your input."); return;
-        }
-
-        if (!token) { setRescheduleApiError("Authentication error: Not logged in."); return; }
-        setIsSubmittingReschedule(true);
-
-        const payload = {
-            message: rescheduleReason,
-            from: format(fromDate, 'yyyy-MM-dd HH:mm:ss'),
-            to: format(toDate, 'yyyy-MM-dd HH:mm:ss'),
-        };
-        try {
-            await axios.put(`${apiBaseUrl}/api/faculty/proposals/${selectedProposal.id}/reschedule`,
-                payload,
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
-            alert('Proposal reschedule request submitted successfully!');
-            resetForms();
-            if (onProposalUpdated) onProposalUpdated();
-            closePopup();
-        } catch (err) {
-            const errorMsg = err instanceof AxiosError && err.response?.data?.message ? `Reschedule failed: ${err.response.data.message}` : "Failed to reschedule proposal. Please try again.";
-            setRescheduleApiError(errorMsg); alert(errorMsg);
-        } finally { setIsSubmittingReschedule(false); }
+    const reportDataObject = {
+        "1. Name of Conveners": `${selectedProposal.convenerName} (${selectedProposal.convenerDesignation || 'N/A'})`,
+        "2. Conducting Department": selectedProposal.organizer,
+        "3. Date and Duration": `${formatDateSafe(selectedProposal.eventStartDate, 'dd-MM-yyyy')} to ${formatDateSafe(selectedProposal.eventEndDate, 'dd-MM-yyyy')} (${eventDuration})`,
+        "4. Type of event": formatRole(selectedProposal.category),
+        "5. Mode of Conduction": "N/A",
+        "6. Association": "N/A",
+        "7. Total Participants": selectedProposal.participantExpected ?? 'N/A',
+        "8. Internal/External participants": "Internal- N/A, External- N/A",
+        "9. Male/Female participants": "Male- N/A, Female- N/A",
+        "10. Participant Categories": selectedProposal.participantCategories?.join(', ') || 'N/A',
+        "11. About the Workshop": selectedProposal.description || 'N/A',
+        "12. Targeted Audience": selectedProposal.participantCategories?.join(', ') || 'N/A',
+        "13. Number of Technical Sessions": "N/A",
+        "14. Session Details": "Details to be added manually.",
+        "15. Event Outcome": selectedProposal.relevantDetails || "N/A",
+        "16. Feedback Collected": "N/A",
+        "17. Photographs": "To be included in the final report."
     };
     
-    // --- MODIFIED PDF FLOW ---
-    const handleDownloadPdfClick = () => {
-        setIsPhotoModalOpen(true);
-    };
+    const report_ws = XLSX.utils.json_to_sheet([reportDataObject]);
 
-    const generatePdfWithPhotos = (photos: string[] = []) => {
-        setIsPhotoModalOpen(false);
-        const doc = new jsPDF();
-        const {
-            title, convenerName, convenerDesignation, organizer, eventStartDate, eventEndDate,
-            category, description, participantExpected, participantCategories,
-            fundingDetails, estimatedBudget,
-        } = selectedProposal;
+    const columnWidths = Object.keys(reportDataObject).map(key => ({
+        wch: key.length > 35 ? key.length : 35
+    }));
+    report_ws['!cols'] = columnWidths;
 
-        let yPos = 15;
-        const pageHeight = doc.internal.pageSize.getHeight();
-        const bottomMargin = 20;
+    const additionalData = [
+        [], 
+        [{ v: "18. Financial Statement", s: { font: { bold: true, sz: 12 } } }],
+        ["External Sponsoring Agency:", formatCurrencyForExcel(selectedProposal.fundingDetails?.sponsorshipFund)],
+        ["Contribution from University:", formatCurrencyForExcel(selectedProposal.fundingDetails?.universityFund)],
+        ["Income through Registration:", formatCurrencyForExcel(selectedProposal.fundingDetails?.registrationFund)],
+        ["Total Expenditure Incurred:", formatCurrencyForExcel(selectedProposal.estimatedBudget)],
+        ["Amount returned to University:", "N/A"],
+        [], 
+        ["19. Signature of Conveners:", ""],
+        ["20. Signature of Dept. Event Coordinator:", ""],
+        ["21. Signature of HOD:", ""]
+    ];
 
-        const addText = (text: string, x: number, options: any = {}) => {
-            const splitText = doc.splitTextToSize(text, 180);
-            const textHeight = (splitText.length * 5) + 3;
-            if (yPos + textHeight > pageHeight - bottomMargin) {
-                doc.addPage();
-                yPos = 20;
-            }
-            doc.text(splitText, x, yPos, options);
-            yPos += textHeight;
-        };
-        
-        const addSection = (title: string, contentLines: (string | null | undefined)[]) => {
-             if (yPos + 20 > pageHeight - bottomMargin) {
-                doc.addPage();
-                yPos = 20;
-            }
-            doc.setFontSize(12).setFont('helvetica', 'bold');
-            addText(title, 14);
-            doc.setFontSize(10).setFont('helvetica', 'normal');
-            contentLines.forEach(line => {
-                if(line) addText(line, 16);
-            });
-            yPos += 5;
-        };
+    XLSX.utils.sheet_add_aoa(report_ws, additionalData, { origin: "A4" });
+    
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, report_ws, "Event Report");
 
-        doc.setFontSize(18).text(`Event Report: ${title}`, doc.internal.pageSize.getWidth() / 2, yPos, { align: 'center' });
-        yPos += 15;
-
-        addSection("1. Name and Designation of Conveners and Co-Conveners:", [`${convenerName ?? 'N/A'} (${convenerDesignation ?? 'N/A'})`]);
-        addSection("2. Conducting Department:", [organizer]);
-        addSection("3. Date and Duration :", [`From: ${formatDateSafe(eventStartDate)}`, `To: ${formatDateSafe(eventEndDate)}`, `Duration: ${eventDuration}`]);
-        addSection("4. Type of event (seminar/workshops/FDP/STTP/conference/Training/Alumni talks etc.):", [category]);
-        addSection("5. Mode of Conduction(Online/Offline/Blended):", ["(Data not available)"]);
-        addSection("6. Association with Professional Bodies/Government agency:", ["(Data not available)"]);
-        addSection("7. Total Number of Registered Participants:", [`Expected: ${participantExpected ?? 'N/A'}`]);
-        addSection("8. Number of Internal/External participants:", ["Internal: (Data not available), External: (Data not available)"]);
-        addSection("9. Number of male/Female participants:", ["Male: (Data not available), Female: (Data not available)"]);
-        addSection("10. Number of participants category wise:", [participantCategories?.join(', ') || '(Data not available)']);
-        addSection("11. About the Workshop(Theme/Objective):", [description]);
-        addSection("12. Targeted Audience:", [participantCategories?.join(', ') || '(Data not available)']);
-        addSection("13. Number of Technical Sessions:", ["(Data not available)"]);
-        addSection("14. Session Details:", ["Inaugural session Details: (Data not available)", "Session 1: (Data not available)", ". . .", "Valedictory details: (Data not available)"]);
-        addSection("15. Event Outcome:", ["(Data not available)"]);
-        addSection("16. Feedback collected from participants and Resource persons(Yes/No):", ["(Data not available)"]);
-        
-        const photoContent = photos.length > 0 ? ["See attached photos on the following page(s)."] : ["(No photographs were attached)"];
-        addSection("17. Photographs with captions for each (min 5 for report including key sessions, highlights, with participants in video) (geo tagged photos to be included )", photoContent);
-
-        addSection("18. Financial statement:", [
-            `External Sponsoring Agency details with amount: ${formatCurrency(fundingDetails?.sponsorshipFund)}`,
-            `Contribution from University: ${formatCurrency(fundingDetails?.universityFund)}`,
-            `Income through Registration: ${formatCurrency(fundingDetails?.registrationFund)}`,
-            `Total Expenditure incurred: ${formatCurrency(estimatedBudget)} (Estimated)`,
-            "Amount returned to University: (Data not available)"
-        ]);
-        
-        addSection("19. Signature of Conveners, Co –conveners:", ["\n\n____________________"]);
-        addSection("20. Signature of the department event coordinator:", ["\n\n____________________"]);
-        addSection("21. Signature of HOD:", ["\n\n____________________"]);
-
-        if (photos.length > 0) {
-            doc.addPage();
-            yPos = 20;
-            doc.setFontSize(14).text("Attached Photographs", 14, yPos);
-            yPos += 15;
-
-            photos.forEach((photoSrc) => {
-                const img = new Image();
-                img.src = photoSrc;
-                
-                // MODIFIED: Replaced faulty getImageProperties logic
-                const pageWidth = doc.internal.pageSize.getWidth();
-                const pageMargin = 28;
-                const availableWidth = pageWidth - pageMargin;
-                
-                const ratio = img.width / img.height;
-                const imgHeight = availableWidth / ratio;
-                const fileTypeMatch = photoSrc.match(/data:image\/(.*?);/);
-                const fileType = fileTypeMatch ? fileTypeMatch[1] : 'jpeg';
-
-                if (yPos + imgHeight > pageHeight - bottomMargin) {
-                    doc.addPage();
-                    yPos = 20;
-                }
-                
-                doc.addImage(img.src, fileType.toUpperCase(), 14, yPos, availableWidth, imgHeight);
-                yPos += imgHeight + 10;
-            });
-        }
-        
-        doc.save(`report_proposal_${selectedProposal.id}.pdf`);
-    };
-
-    let headerTitle = selectedProposal.title || 'Proposal Details';
-    let closeButtonLabel = "Close Pop-up";
-    if (isEnteringBill) {
-        headerTitle = `Enter Actual Bill: ${selectedProposal.title}`;
-        closeButtonLabel = "Cancel Bill Entry";
-    } else if (showCancelForm) {
-        headerTitle = `Cancel Proposal: ${selectedProposal.title}`;
-        closeButtonLabel = "Back to Details";
-    } else if (showRescheduleForm) {
-        headerTitle = `Reschedule Proposal: ${selectedProposal.title}`;
-        closeButtonLabel = "Back to Details";
+    if (selectedProposal.detailedBudget?.length > 0) {
+        const budgetData: Array<any> = selectedProposal.detailedBudget.map(item => ({
+            "Category": item.category, "Sub-Category": item.sub_category, "Type": item.type || '-', "Status": item.status, "Quantity": item.quantity, "Cost per Unit": item.cost, "Total Amount": item.amount
+        }));
+        const totalBudget = selectedProposal.detailedBudget.reduce((sum, item) => sum + (item.amount || 0), 0);
+        budgetData.push({ "Category": "TOTAL", "Sub-Category": "", "Type": "", "Status": "", "Quantity": null, "Cost per Unit": null, "Total Amount": totalBudget });
+        const budget_ws = XLSX.utils.json_to_sheet(budgetData);
+        budget_ws['!cols'] = [{ wch: 25 }, { wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 15 }, { wch: 15 }];
+        XLSX.utils.book_append_sheet(workbook, budget_ws, "Detailed Budget");
+    }
+    if (selectedProposal.sponsorshipDetailsRows?.length > 0) {
+        const sponsorData = selectedProposal.sponsorshipDetailsRows.map(sponsor => ({
+            "Sponsor/Category": sponsor.category, "Mode": sponsor.mode, "Amount": sponsor.amount, "Reward": sponsor.reward, "Benefit": sponsor.benefit, "About": sponsor.about
+        }));
+        const totalSponsorship = selectedProposal.sponsorshipDetailsRows.reduce((sum, item) => sum + (item.amount || 0), 0);
+        sponsorData.push({ "Sponsor/Category": "TOTAL", "Mode": "", "Amount": totalSponsorship, "Reward": "", "Benefit": "", "About": "" });
+        const sponsors_ws = XLSX.utils.json_to_sheet(sponsorData);
+        sponsors_ws['!cols'] = [{ wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 30 }, { wch: 30 }, { wch: 40 }];
+        XLSX.utils.book_append_sheet(workbook, sponsors_ws, "Sponsorship Details");
     }
 
+    XLSX.writeFile(workbook, `Proposal_Report_${selectedProposal.id}.xlsx`);
+    setIsDownloading(false);
+  };
+
+  if (isDetailLoading) {
     return (
-        <>
-            <PhotoUploadModal
-                isOpen={isPhotoModalOpen}
-                onClose={() => setIsPhotoModalOpen(false)}
-                onGenerate={generatePdfWithPhotos}
-            />
-            <motion.div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-transparent bg-opacity-60 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }} aria-labelledby="proposal-popup-title" role="dialog" aria-modal="true">
-                <motion.div className="bg-white rounded-lg border-t-4 border-blue-700 shadow-xl w-full max-w-6xl mx-auto max-h-[90vh] flex flex-col" initial={{ y: -30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 30, opacity: 0 }} transition={{ duration: 0.3, type: "spring", stiffness: 120 }}>
-                    {/* Header */}
-                    <div className="flex justify-between items-center p-4 border-b border-gray-200 sticky top-0 bg-white z-10">
-                        <h2 id="proposal-popup-title" className="text-xl font-bold text-blue-900 truncate pr-4">{headerTitle}</h2>
-                        <button onClick={handlePopupCloseAction} className="text-gray-500 hover:text-red-600 transition-colors flex-shrink-0" aria-label={closeButtonLabel}>
-                            <X className="h-6 w-6" />
-                        </button>
-                    </div>
-
-                    {/* Scrollable Content Area */}
-                    <div className="p-5 md:p-6 space-y-6 overflow-y-auto flex-grow custom-scrollbar">
-                        {isEnteringBill ? (
-                            <section aria-labelledby="actual-bill-heading" className="border border-blue-200 rounded-lg p-4 bg-blue-50/50">{/*... Your original JSX ...*/}</section>
-                        ) : showCancelForm ? (
-                            <section aria-labelledby="cancel-proposal-heading" className="border border-red-200 rounded-lg p-4 bg-red-50/50">{/*... Your original JSX ...*/}</section>
-                        ) : showRescheduleForm ? (
-                            <section aria-labelledby="reschedule-proposal-heading" className="border border-orange-200 rounded-lg p-4 bg-orange-50/50">{/*... Your original JSX ...*/}</section>
-                        ) : (
-                            <>
-                               <section aria-labelledby="event-info-heading" className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                                    <h3 id="event-info-heading" className="text-lg font-semibold text-blue-800 mb-3 flex items-center gap-2"><Info size={18} /> Event Information</h3>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-3">
-                                        <DetailItem label="Proposal ID" value={selectedProposal.id} />
-                                        <DetailItem label="Category" value={selectedProposal.category?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'N/A'} />
-                                        <DetailItem label="Status" >
-                                            <span className={`font-medium px-2 py-0.5 rounded-full text-xs ${selectedProposal.status === 'approved' ? 'bg-green-100 text-green-700' : selectedProposal.status === 'completed' ? 'bg-purple-100 text-purple-700' : selectedProposal.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : selectedProposal.status === 'rejected' ? 'bg-red-100 text-red-700' : selectedProposal.status === 'review' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>
-                                                {formatRole(selectedProposal.status)}
-                                            </span>
-                                        </DetailItem>
-                                        <DetailItem label="Awaiting Approval From" value={formatRole(selectedProposal.awaiting) || (['pending', 'review', 'approved'].includes(selectedProposal.status) ? 'N/A' : '-')} />
-                                        <DetailItem label="Event Start Date" value={formatDateSafe(selectedProposal.eventStartDate, 'dd-MM-yyyy')} />
-                                        <DetailItem label="Event End Date" value={formatDateSafe(selectedProposal.eventEndDate, 'dd-MM-yyyy')} />
-                                        <DetailItem label="Duration" value={eventDuration} />
-                                        <DetailItem label="Submitted On" value={formatDateSafe(selectedProposal.submissionTimestamp)} />
-                                        <div className="sm:col-span-2 md:col-span-3"> <DetailItem label="Description" value={selectedProposal.description || 'N/A'} /> </div>
-                                        <div className="sm:col-span-2 md:col-span-3"> <DetailItem label="Past Relevant Events" value={selectedProposal.pastEvents || 'N/A'} /> </div>
-                                        <div className="sm:col-span-2 md:col-span-3"> <DetailItem label="Other Relevant Details" value={selectedProposal.relevantDetails || 'N/A'} /> </div>
-                                    </div>
-                                </section>
-                                <section aria-labelledby="organizer-heading" className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                                    <h3 id="organizer-heading" className="text-lg font-semibold text-blue-800 mb-3 flex items-center gap-2"><Users size={18} /> Organizer & Participants</h3>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-3">
-                                        <DetailItem label="Organizing Dept." value={selectedProposal.organizer} />
-                                        <DetailItem label="Convener Name" value={selectedProposal.convenerName} />
-                                        <DetailItem label="Convener Email" value={selectedProposal.convenerEmail} />
-                                        <DetailItem label="Convener Designation" value={selectedProposal.convenerDesignation || 'N/A'} />
-                                        <DetailItem label="Expected Participants" value={selectedProposal.participantExpected ?? 'N/A'} />
-                                        <DetailItem label="Participant Categories" className="md:col-span-2">
-                                            {selectedProposal.participantCategories && selectedProposal.participantCategories.length > 0 ? (<div className="flex flex-wrap gap-1 mt-1"> {selectedProposal.participantCategories.map((cat, index) => (<span key={index} className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{cat}</span>))} </div>) : <p className="text-sm text-gray-600">N/A</p>}
-                                        </DetailItem>
-                                    </div>
-                                </section>
-                                {selectedProposal.chiefGuestName && (
-                                    <section aria-labelledby="chief-guest-heading" className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                                        <h3 id="chief-guest-heading" className="text-lg font-semibold text-blue-800 mb-3 flex items-center gap-2"><UserCheck size={18} /> Chief Guest</h3>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-3">
-                                            <DetailItem label="Name" value={selectedProposal.chiefGuestName} /> <DetailItem label="Designation" value={selectedProposal.chiefGuestDesignation} /> <DetailItem label="Phone" value={selectedProposal.chiefGuestPhone} />
-                                            <DetailItem label="PAN" value={selectedProposal.chiefGuestPan} /> <DetailItem label="Address" value={selectedProposal.chiefGuestAddress} className="md:col-span-2" /> <DetailItem label="Reason for Inviting" value={selectedProposal.chiefGuestReason || 'N/A'} className="md:col-span-3" />
-                                        </div>
-                                        {(selectedProposal.hotelName || selectedProposal.travelName) && (<div className="mt-4 pt-3 border-t border-gray-200"> <h4 className="text-md font-medium text-gray-700 mb-2">Accommodation & Travel</h4> <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3"> <div> <p className="text-sm font-semibold text-gray-700 flex items-center gap-1 mb-1"><BedDouble size={16} /> Accommodation</p> <DetailItem label="Hotel" value={`${selectedProposal.hotelName || 'N/A'} (${selectedProposal.hotelType || 'N/A'})`} /> <DetailItem label="Hotel Address" value={selectedProposal.hotelAddress || 'N/A'} /> <DetailItem label="Stay Duration" value={selectedProposal.hotelDuration ? `${selectedProposal.hotelDuration} day(s)` : 'N/A'} /> </div> <div> <p className="text-sm font-semibold text-gray-700 flex items-center gap-1 mb-1"><Car size={16} /> Travel</p> <DetailItem label="Mode" value={`${selectedProposal.travelName || 'N/A'} (${selectedProposal.travelType || 'N/A'})`} /> <DetailItem label="From/To" value={selectedProposal.travelAddress || 'N/A'} /> <DetailItem label="Travel Duration/Trips" value={selectedProposal.travelDuration ? `${selectedProposal.travelDuration} day(s)/trip(s)` : 'N/A'} /> </div> </div> </div>)}
-                                    </section>
-                                )}
-                                <section aria-labelledby="financial-heading" className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                                    <h3 id="financial-heading" className="text-lg font-semibold text-blue-800 mb-3 flex items-center gap-2"><DollarSign size={18} /> Financial Overview (Estimates)</h3>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3 mb-4">
-                                        <DetailItem label="Est. Total Budget" value={formatCurrency(selectedProposal.estimatedBudget)} /> <DetailItem label="University Fund" value={formatCurrency(selectedProposal.fundingDetails?.universityFund)} /> <DetailItem label="Registration Fund" value={formatCurrency(selectedProposal.fundingDetails?.registrationFund)} /> <DetailItem label="Sponsorship Fund" value={formatCurrency(selectedProposal.fundingDetails?.sponsorshipFund)} /> <DetailItem label="Other Fund" value={formatCurrency(selectedProposal.fundingDetails?.otherSourcesFund)} />
-                                    </div>
-                                    {(selectedProposal.detailedBudget && selectedProposal.detailedBudget.length > 0) &&
-                                     (<div className="mt-4 pt-3 border-t border-gray-200">
-                                         <h4 className="text-md font-medium text-gray-700 mb-2 flex items-center gap-1"><FileText size={16} /> Estimated Budget Items</h4>
-                                        <div className="overflow-x-auto max-h-60 border rounded-md">
-                                            <table className="table table-sm w-full text-xs">
-                                                <thead className="sticky top-0 bg-gray-100 z-10"><tr>
-                                                    <th className="p-2">Category</th><th className="p-2">Subcategory</th><th className="p-2">Type</th>
-                                                    {selectedProposal.detailedBudget.some(it => it.status) && <th className='p-2 text-center'>Status</th>}
-                                                    <th className='p-2 text-right'>Qty</th><th className='p-2 text-right'>Cost/Unit</th><th className='p-2 text-right'>Total</th>
-                                                </tr></thead>
-                                                <tbody>
-                                                    {selectedProposal.detailedBudget.map((item, index) => (<tr key={item.id || index} className="hover:bg-gray-50 border-b last:border-b-0 border-gray-200">
-                                                        <td className="p-2">{item.category}</td><td className="p-2">{item.sub_category}</td><td className="p-2">{item.type || '-'}</td>
-                                                        {selectedProposal.detailedBudget.some(it => it.status) && <td className='p-2 text-center'><span className={`font-medium px-1.5 py-0.5 rounded-full text-[10px] ${item.status === 'actual' ? 'bg-cyan-100 text-cyan-700' : 'bg-orange-100 text-orange-700'}`}> {item.status || 'N/A'} </span></td>}
-                                                        <td className='p-2 text-right'>{item.quantity}</td><td className='p-2 text-right'>{formatCurrency(item.cost)}</td><td className='p-2 text-right font-medium'>{formatCurrency(item.amount)}</td>
-                                                    </tr>))}
-                                                </tbody>
-                                                <tfoot className='sticky bottom-0'><tr className='font-bold bg-gray-100'><td colSpan={selectedProposal.detailedBudget.some(it => it.status) ? 5 : 4} className='p-2 text-right'>Total Estimate:</td><td className='p-2 text-right'>{formatCurrency(selectedProposal.estimatedBudget)}</td></tr></tfoot>
-                                            </table>
-                                        </div>
-                                    </div>)}
-                                    {(selectedProposal.sponsorshipDetailsRows && selectedProposal.sponsorshipDetailsRows.length > 0) && (<div className="mt-4 pt-3 border-t border-gray-200"> <h4 className="text-md font-medium text-gray-700 mb-2 flex items-center gap-1"><Award size={16} /> Sponsorship Details</h4>
-                                        <div className="overflow-x-auto max-h-60 border rounded-md">
-                                            <table className="table table-sm w-full text-xs">
-                                                <thead className="sticky top-0 bg-gray-100 z-10"><tr><th className='p-2'>Sponsor/Category</th><th className='p-2'>Mode</th><th className='p-2 text-right'>Amount</th><th className='p-2'>Reward</th><th className='p-2'>Benefit</th><th className='p-2'>About</th></tr></thead>
-                                                <tbody>{selectedProposal.sponsorshipDetailsRows.map((sponsor, index) => (<tr key={sponsor.id || index} className="hover:bg-gray-50 border-b last:border-b-0 border-gray-200"><td className='p-2'>{sponsor.category}</td><td className='p-2'>{sponsor.mode}</td><td className='p-2 text-right'>{formatCurrency(sponsor.amount)}</td><td className='p-2'>{sponsor.reward}</td><td className='p-2'>{sponsor.benefit}</td><td className="p-2 max-w-[150px] truncate" title={sponsor.about}>{sponsor.about}</td></tr>))}</tbody>
-                                            </table>
-                                        </div>
-                                    </div>)}
-                                </section>
-                                {(selectedProposal.messages && selectedProposal.messages.length > 0) && (
-                                    <section aria-labelledby="comms-heading" className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                                        <h3 id="comms-heading" className="text-lg font-semibold text-blue-800 mb-4 flex items-center gap-2"><MessageSquare size={18} /> Communication Log</h3>
-                                        <div className="space-y-3 max-h-72 overflow-y-auto pr-2 custom-scrollbar">
-                                            {selectedProposal.messages.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).map((msg) => (<div key={msg.id} className="p-3 border-l-4 border-blue-300 rounded-r-md bg-white shadow-sm"> <p className="text-sm text-gray-800 mb-2 whitespace-pre-wrap">{msg.message}</p> <div className="flex justify-between items-center text-xs text-gray-500 border-t border-gray-100 pt-1.5 mt-1.5"> <span> By: <span className='font-medium text-gray-700'>{msg.user?.name || 'Unknown User'}</span> <span className='italic ml-1'>({formatRole(msg.user?.role)})</span> </span> <span title={formatDateSafe(msg.created_at, 'PPpp')}> {formatDateSafe(msg.created_at, 'dd-MM-yy hh:mm a')} </span> </div> </div>))}
-                                        </div>
-                                    </section>
-                                )}
-                            </>
-                        )}
-                    </div>
-
-                    {/* Footer / Actions */}
-                    <div className="p-4 border-t border-gray-200 bg-gray-50 rounded-b-lg sticky bottom-0 z-10">
-                        {!isEnteringBill && !showCancelForm && !showRescheduleForm && errorMessage && (
-                            <div role="alert" className="alert alert-error alert-sm mb-3 shadow-md"><div className="flex items-center gap-2"><AlertCircle size={18} /><span>{errorMessage}</span></div></div>
-                        )}
-                        <div className="flex flex-wrap justify-end items-center gap-3">
-                            {isEnteringBill ? (
-                                <>
-                                    <button onClick={handlePopupCloseAction} className="btn btn-ghost btn-sm" disabled={isSubmittingActualBill}>Cancel</button>
-                                    <button onClick={handleActualBillSubmit} className="btn btn-success btn-sm text-white flex items-center gap-1" disabled={isSubmittingActualBill || !token || actualBillItems.length === 0}>
-                                        {isSubmittingActualBill ? (<span className="loading loading-spinner loading-xs"></span>) : (<CheckCircle size={16} />)} Submit Actual Bill
-                                    </button>
-                                </>
-                            ) : showCancelForm ? (
-                                <>
-                                    <button onClick={handlePopupCloseAction} className="btn btn-ghost btn-sm" disabled={isSubmittingCancel}>Back to Details</button>
-                                    <button onClick={handleCancelProposalSubmit} className="btn btn-error btn-sm text-white flex items-center gap-1" disabled={isSubmittingCancel || !token}>
-                                        {isSubmittingCancel ? <span className="loading loading-spinner loading-xs"></span> : <Ban size={16} />} Confirm Cancellation
-                                    </button>
-                                </>
-                            ) : showRescheduleForm ? (
-                                 <>
-                                    <button onClick={handlePopupCloseAction} className="btn btn-ghost btn-sm" disabled={isSubmittingReschedule}>Back to Details</button>
-                                    <button onClick={handleRescheduleProposalSubmit} className="btn btn-warning btn-sm text-black flex items-center gap-1" disabled={isSubmittingReschedule || !token}>
-                                        {isSubmittingReschedule ? <span className="loading loading-spinner loading-xs"></span> : <Send size={16} />} Submit Reschedule
-                                    </button>
-                                </>
-                            ) : (
-                                <>
-                                    <button
-                                        onClick={handleDownloadPdfClick}
-                                        className="btn btn-info btn-sm text-white flex items-center gap-1"
-                                        disabled={isLoading}
-                                    >
-                                        <Download size={14} /> Download Report
-                                    </button>
-                                    
-                                    {selectedProposal.awaiting?.toLowerCase() === 'hod' && ['pending', 'review'].includes(selectedProposal.status) && (
-                                        <button onClick={() => router.push(`/proposal/edit?proposalId=${selectedProposal.id}`)} className="btn btn-info btn-sm text-white flex items-center gap-1" disabled={isLoading}><Edit size={14} /> Edit Proposal</button>
-                                    )}
-                                    {showBillEntryButton && (
-                                        <button onClick={startBillEntry} className="btn btn-warning btn-sm text-black flex items-center gap-1" disabled={isLoading}><UploadCloud size={16} /> Enter Actual Bill</button>
-                                    )}
-                                    {canModifyProposal && (
-                                        <>
-                                        {/* <button onClick={openRescheduleForm} className="btn btn-outline btn-primary btn-sm flex items-center gap-1" disabled={isLoading}><RefreshCw size={14} /> Reschedule</button>
-                                        <button onClick={openCancelForm} className="btn btn-outline btn-error btn-sm flex items-center gap-1" disabled={isLoading}><Ban size={14} /> Cancel Proposal</button> */}
-                                        </>
-                                    )}
-                                </>
-                            )}
-                        </div>
-                    </div>
-                </motion.div>
-            </motion.div>
-        </>
+      <motion.div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-md bg-opacity-60 p-4"
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
+        <PopupSkeleton />
+      </motion.div>
     );
+  }
+
+  if (!selectedProposal) return null;
+
+  return (
+    <>
+      <PdfOptionsModal
+        isOpen={isPdfOptionsModalOpen}
+        onClose={() => setIsPdfOptionsModalOpen(false)}
+        onGenerate={generatePdfWithOptions}
+      />
+      <motion.div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-md bg-opacity-50 p-4"
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
+        <motion.div className="bg-white rounded-lg border-t-4 border-indigo-700 shadow-xl w-full max-w-5xl mx-auto max-h-[90vh] flex flex-col"
+          initial={{ y: -30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 30, opacity: 0 }} transition={{ duration: 0.3, type: "spring", stiffness: 120 }}>
+          
+          <div className="flex justify-between items-center p-4 border-b border-gray-200 sticky top-0 bg-white z-10">
+            <h2 className="text-xl font-bold text-indigo-900">{selectedProposal.title || 'Proposal Details'}</h2>
+            <button onClick={closePopup} className="text-gray-500 hover:text-red-600 transition-colors" aria-label="Close pop-up">
+              <X className="h-6 w-6" />
+            </button>
+          </div>
+
+          <div className="p-5 md:p-6 space-y-6 overflow-y-auto flex-grow custom-scrollbar">
+              <section className="border border-gray-200 rounded-lg p-4 bg-gray-50/80">
+              <h3 className="text-lg font-semibold text-indigo-800 mb-3 flex items-center gap-2"><Info size={18} /> Event Information</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-3">
+                <DetailItem label="Proposal ID" value={selectedProposal.id} />
+                <DetailItem label="Category" value={formatRole(selectedProposal.category)} />
+                <DetailItem label="Status">
+                  <span className={`font-medium px-2 py-0.5 rounded-full text-xs ${selectedProposal.status === 'approved' ? 'bg-green-100 text-green-700' : selectedProposal.status === 'completed' ? 'bg-purple-100 text-purple-700' : selectedProposal.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : selectedProposal.status === 'rejected' ? 'bg-red-100 text-red-700' : selectedProposal.status === 'review' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>
+                    {formatRole(selectedProposal.status)}
+                  </span>
+                </DetailItem>
+                <DetailItem label="Awaiting Approval From" value={formatRole(selectedProposal.awaiting) || (selectedProposal.status !== 'pending' && selectedProposal.status !== 'review' ? '-' : 'N/A')} />
+                <DetailItem label="Event Start Date" value={formatDateSafe(selectedProposal.eventStartDate, 'dd-MM-yyyy')} />
+                <DetailItem label="Event End Date" value={formatDateSafe(selectedProposal.eventEndDate, 'dd-MM-yyyy')} />
+                <DetailItem label="Duration" value={eventDuration} />
+                <DetailItem label="Submitted On" value={formatDateSafe(selectedProposal.submissionTimestamp)} />
+                <div className="sm:col-span-2 md:col-span-3"><DetailItem label="Description" value={selectedProposal.description || 'N/A'} /></div>
+                <div className="sm:col-span-2 md:col-span-3"><DetailItem label="Past Relevant Events" value={selectedProposal.pastEvents || 'N/A'} /></div>
+                <div className="sm:col-span-2 md:col-span-3"><DetailItem label="Other Relevant Details" value={selectedProposal.relevantDetails || 'N/A'} /></div>
+              </div>
+            </section>
+
+            <section className="border border-gray-200 rounded-lg p-4 bg-gray-50/80">
+              <h3 className="text-lg font-semibold text-indigo-800 mb-3 flex items-center gap-2"><Users size={18} /> Organizer & Participants</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-3">
+                <DetailItem label="Organizing Dept." value={selectedProposal.organizer} />
+                <DetailItem label="Convener Name" value={selectedProposal.convenerName} />
+                <DetailItem label="Convener Email" value={selectedProposal.convenerEmail} />
+                <DetailItem label="Convener Designation" value={selectedProposal.convenerDesignation || 'N/A'} />
+                <DetailItem label="Expected Participants" value={selectedProposal.participantExpected ?? 'N/A'} />
+                <DetailItem label="Participant Categories" className="md:col-span-2">
+                  {selectedProposal.participantCategories && selectedProposal.participantCategories.length > 0 ? (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {selectedProposal.participantCategories.map((cat, index) => (
+                        <span key={index} className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{cat}</span>
+                      ))}
+                    </div>
+                  ) : <p className="text-sm text-gray-600">N/A</p>}
+                </DetailItem>
+              </div>
+            </section>
+
+            {selectedProposal.chiefGuestName && (
+              <section className="border border-gray-200 rounded-lg p-4 bg-gray-50/80">
+                <h3 className="text-lg font-semibold text-indigo-800 mb-3 flex items-center gap-2"><UserCheck size={18} /> Chief Guest</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-3">
+                  <DetailItem label="Name" value={selectedProposal.chiefGuestName} />
+                  <DetailItem label="Designation" value={selectedProposal.chiefGuestDesignation} />
+                  <DetailItem label="Phone" value={selectedProposal.chiefGuestPhone} />
+                  <DetailItem label="PAN" value={selectedProposal.chiefGuestPan} />
+                  <DetailItem label="Address" value={selectedProposal.chiefGuestAddress} className="md:col-span-2" />
+                  <DetailItem label="Reason for Inviting" value={selectedProposal.chiefGuestReason || 'N/A'} className="md:col-span-3" />
+                </div>
+                {(selectedProposal.hotelName || selectedProposal.travelName) && (
+                  <div className="mt-4 pt-3 border-t border-gray-200">
+                    <h4 className="text-md font-medium text-gray-700 mb-2">Accommodation & Travel</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-700 flex items-center gap-1 mb-1"><BedDouble size={16} /> Accommodation</p>
+                        <DetailItem label="Hotel" value={`${selectedProposal.hotelName || 'N/A'} (${selectedProposal.hotelType || 'N/A'})`} />
+                        <DetailItem label="Hotel Address" value={selectedProposal.hotelAddress || 'N/A'} />
+                        <DetailItem label="Stay Duration" value={selectedProposal.hotelDuration ? `${selectedProposal.hotelDuration} day(s)` : 'N/A'} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-700 flex items-center gap-1 mb-1"><Car size={16} /> Travel</p>
+                        <DetailItem label="Mode" value={`${selectedProposal.travelName || 'N/A'} (${selectedProposal.travelType || 'N/A'})`} />
+                        <DetailItem label="From/To" value={selectedProposal.travelAddress || 'N/A'} />
+                        <DetailItem label="Travel Duration/Trips" value={selectedProposal.travelDuration ? `${selectedProposal.travelDuration} day(s)/trip(s)` : 'N/A'} />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </section>
+            )}
+
+            <section className="border border-gray-200 rounded-lg p-4 bg-gray-50/80">
+              <h3 className="text-lg font-semibold text-indigo-800 mb-3 flex items-center gap-2"><DollarSign size={18} /> Financial Overview</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3 mb-4">
+                <DetailItem label="Est. Total Budget" value={formatCurrency(selectedProposal.estimatedBudget)} />
+                <DetailItem label="University Fund" value={formatCurrency(selectedProposal.fundingDetails?.universityFund)} />
+                <DetailItem label="Registration Fund" value={formatCurrency(selectedProposal.fundingDetails?.registrationFund)} />
+                <DetailItem label="Sponsorship Fund" value={formatCurrency(selectedProposal.fundingDetails?.sponsorshipFund)} />
+                <DetailItem label="Other Fund" value={formatCurrency(selectedProposal.fundingDetails?.otherSourcesFund)} />
+              </div>
+              {selectedProposal.detailedBudget && selectedProposal.detailedBudget.length > 0 && (
+                <div className="mt-4 pt-3 border-t border-gray-200">
+                  <h4 className="text-md font-medium text-gray-700 mb-2 flex items-center gap-1"><FileText size={16} /> Detailed Budget Items</h4>
+                  {isClient && (
+                    <div className="overflow-x-auto max-h-60 border rounded-md">
+                      <table className={`table table-sm w-full text-xs ${isClient ? 'sticky-table' : ''}`}>
+                        <thead className="bg-gray-100 z-10">
+                          <tr className='text-blue-500'>
+                            <th className="p-2">Category</th><th className="p-2">Subcategory</th><th className="p-2">Type</th>
+                            <th className="p-2 text-center">Status</th><th className="p-2 text-right">Qty</th>
+                            <th className="p-2 text-right">Cost/Unit</th><th className="p-2 text-right">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selectedProposal.detailedBudget.map((item, index) => (
+                            <tr key={item.id || index} className="hover:bg-gray-50 border-b last:border-b-0 border-gray-200">
+                              <td className="p-2">{item.category}</td><td className="p-2">{item.sub_category}</td><td className="p-2">{item.type || '-'}</td>
+                              <td className="p-2 text-center">
+                                <span className={`font-medium px-1.5 py-0.5 rounded-full text-[10px] ${item.status === 'actual' ? 'bg-cyan-100 text-cyan-700' : 'bg-orange-100 text-orange-700'}`}>{item.status || 'N/A'}</span>
+                              </td>
+                              <td className="p-2 text-right">{item.quantity}</td><td className="p-2 text-right">{formatCurrency(item.cost)}</td><td className="p-2 text-right font-medium">{formatCurrency(item.amount)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot className="bg-gray-100">
+                          <tr>
+                            <td colSpan={6} className="p-2 text-right">Total:</td><td className="p-2 text-right">{formatCurrency(selectedProposal.estimatedBudget)}</td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+              {selectedProposal.sponsorshipDetailsRows && selectedProposal.sponsorshipDetailsRows.length > 0 && (
+                <div className="mt-4 pt-3 border-t border-gray-200">
+                  <h4 className="text-md font-medium text-gray-700 mb-2 flex items-center gap-1"><Award size={16} /> Sponsorship Details</h4>
+                  {isClient && (
+                    <div className="overflow-x-auto max-h-60 border rounded-md">
+                      <table className={`table table-sm w-full text-xs ${isClient ? 'sticky-table' : ''}`}>
+                        <thead className="bg-gray-100 z-10">
+                          <tr className='text-blue-500'>
+                            <th className="p-2">Sponsor/Category</th><th className="p-2">Mode</th><th className="p-2 text-right">Amount</th>
+                            <th className="p-2">Reward</th><th className="p-2">Benefit</th><th className="p-2">About</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selectedProposal.sponsorshipDetailsRows.map((sponsor, index) => (
+                            <tr key={sponsor.id || index} className="hover:bg-gray-50 border-b last:border-b-0 border-gray-200">
+                              <td className="p-2">{sponsor.category}</td><td className="p-2">{sponsor.mode}</td><td className="p-2 text-right">{formatCurrency(sponsor.amount)}</td>
+                              <td className="p-2">{sponsor.reward}</td><td className="p-2">{sponsor.benefit}</td><td className="p-2 max-w-[150px] truncate" title={sponsor.about}>{sponsor.about}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+            </section>
+
+            {selectedProposal.messages && selectedProposal.messages.length > 0 && (
+              <section className="border border-gray-200 rounded-lg p-4 bg-gray-50/80">
+                <h3 className="text-lg font-semibold text-indigo-800 mb-4 flex items-center gap-2"><MessageSquare size={18} /> Communication Log</h3>
+                <div className="space-y-3 max-h-72 overflow-y-auto pr-2 custom-scrollbar">
+                  {selectedProposal.messages.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).map((msg) => (
+                    <div key={msg.id} className="p-3 border-l-4 border-indigo-300 rounded-r-md bg-white shadow-sm">
+                      <p className="text-sm text-gray-800 mb-2 whitespace-pre-wrap">{msg.message}</p>
+                      <div className="flex justify-between items-center text-xs text-gray-500 border-t border-gray-100 pt-1.5 mt-1.5">
+                        <span>By: <span className="font-medium text-gray-700">{msg.user?.name || 'Unknown User'}</span> <span className="italic ml-1">({formatRole(msg.user?.role)})</span></span>
+                        <span title={formatDateSafe(msg.created_at, 'PPpp')}>{formatDateSafe(msg.created_at, 'dd-MM-yy hh:mm a')}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
+
+          <div className="p-4 border-t border-gray-200 bg-gray-50 rounded-b-lg sticky bottom-0 z-10">
+            {errorMessage && <div className="alert alert-error shadow-lg text-xs p-2 mb-3"><div><AlertCircle size={16} /> <span>Action Error: {errorMessage}</span></div></div>}
+            {localErrorMessage && <div className="alert alert-warning shadow-lg text-xs p-2 mb-3"><div><AlertCircle size={16} /> <span>{localErrorMessage}</span></div></div>}
+            
+            <div className="flex flex-wrap justify-between items-center gap-3">
+              <div className="flex flex-wrap gap-2">
+                  <button onClick={handleDownloadPdf} className="btn btn-ghost btn-sm text-red-600" disabled={isDownloading}>
+                      {isDownloading ? <Loader2 className="animate-spin mr-1" size={16} /> : <FileDown size={16} className="mr-1" />} PDF
+                  </button>
+                  <button onClick={handleDownloadExcel} className="btn btn-ghost btn-sm text-green-600" disabled={isDownloading}>
+                      {isDownloading ? <Loader2 className="animate-spin mr-1" size={16} /> : <FileDown size={16} className="mr-1" />} Excel
+                  </button>
+              </div>
+
+              {canHodAct && !isRejecting && !isReviewing && (
+                <div className="flex flex-wrap gap-3 justify-end">
+                  <button onClick={executeAccept} className="btn btn-success btn-sm text-white" disabled={isLoading || isDownloading}>
+                    {isLoading && !isDownloading ? <Loader2 className="animate-spin mr-1" size={16} /> : <ThumbsUp size={16} className="mr-1" />} Accept
+                  </button>
+                  <button onClick={handleReviewClick} className="btn btn-warning btn-sm text-white" disabled={isLoading || isDownloading}>
+                    <MessageCircle size={16} className="mr-1" /> Request Review
+                  </button>
+                  <button onClick={handleRejectClick} className="btn btn-error btn-sm text-white" disabled={isLoading || isDownloading}>
+                    <ThumbsDown size={16} className="mr-1" /> Reject
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {isRejecting && (
+              <div className="mt-3 space-y-2">
+                <label htmlFor="rejectionMessage" className="block text-sm font-semibold text-gray-700">Reason for Rejection: <span className="text-red-500">*</span></label>
+                <textarea id="rejectionMessage" rows={2} className={`textarea textarea-bordered w-full bg-white text-black ${localErrorMessage?.includes('Rejection') ? 'textarea-error' : ''}`} placeholder="Enter rejection reason..." value={rejectionInput} onChange={(e) => setRejectionInput(e.target.value)} disabled={isLoading} required />
+                <div className="flex gap-3 justify-end mt-2">
+                  <button onClick={cancelAction} className="btn btn-ghost btn-sm" disabled={isLoading}>Cancel</button>
+                  <button onClick={executeReject} className="btn btn-error btn-sm text-white" disabled={isLoading || !rejectionInput.trim()}>
+                    {isLoading ? <Loader2 className="animate-spin mr-1" size={16} /> : <ThumbsDown size={16} className="mr-1" />} Confirm Reject
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {isReviewing && (
+              <div className="mt-3 space-y-2">
+                <label htmlFor="reviewMessage" className="block text-sm font-semibold text-gray-700">Comments for Review: <span className="text-red-500">*</span></label>
+                <textarea id="reviewMessage" rows={2} className={`textarea textarea-bordered w-full bg-white text-black ${localErrorMessage?.includes('Review') ? 'textarea-error' : ''}`} placeholder="Enter comments or questions..." value={reviewInput} onChange={(e) => setReviewInput(e.target.value)} disabled={isLoading} required />
+                <div className="flex gap-3 justify-end mt-2">
+                  <button onClick={cancelAction} className="btn btn-ghost btn-sm" disabled={isLoading}>Cancel</button>
+                  <button onClick={executeReview} className="btn btn-warning btn-sm text-white" disabled={isLoading || !reviewInput.trim()}>
+                    {isLoading ? <Loader2 className="animate-spin mr-1" size={16} /> : <Send size={16} className="mr-1" />} Submit Review
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </motion.div>
+      </motion.div>
+    </>
+  );
 };
+
+const styles = `
+  .sticky-table thead { position: sticky; top: 0; background: #f7fafc; z-index: 10; }
+  .sticky-table tfoot { position: sticky; bottom: 0; background: #f7fafc; }
+`;
+
+if (typeof window !== 'undefined') {
+  const styleSheet = document.createElement('style');
+  styleSheet.textContent = styles;
+  document.head.appendChild(styleSheet);
+}
 
 export default Popup;
