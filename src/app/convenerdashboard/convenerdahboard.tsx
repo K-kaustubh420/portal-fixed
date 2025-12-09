@@ -428,15 +428,15 @@ const ConvenerDashboard: React.FC = () => {
             </div>
 
             {/* Detail Popup Modal */}
-            {selectedProposalDetail && token && (
-                <Popup
-                    selectedProposal={selectedProposalDetail}
-                    closePopup={closeDetailPopup}
-                    onProposalUpdated={handleProposalUpdated}
-                    token={token} // Pass token
-                    apiBaseUrl={API_BASE_URL} // Pass API base URL
-                />
-            )}
+           {/* Detail Popup Modal */}
+{selectedProposalDetail && token && (
+    <Popup
+        selectedProposal={selectedProposalDetail}
+        closePopup={closeDetailPopup}
+        onProposalUpdated={handleProposalUpdated}
+        currentUserRole="convener"
+    />
+)}
 
             {/* --- Transport Form Popup Modal --- */}
             {isTransportPopupOpen && selectedProposalIdForTransport && token && (
