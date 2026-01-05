@@ -1,0 +1,39 @@
+[1mdiff --git a/src/app/convenerdashboard/calendarview.tsx b/src/app/convenerdashboard/calendarview.tsx[m
+[1mindex 9a9ac32..2a6d441 100644[m
+[1m--- a/src/app/convenerdashboard/calendarview.tsx[m
+[1m+++ b/src/app/convenerdashboard/calendarview.tsx[m
+[36m@@ -224,23 +224,17 @@[m [mconst CalendarView: React.FC<CalendarViewProps> = ({ proposals }) => {[m
+             />[m
+ [m
+             {/* Render Popup when an event is selected */}[m
+[31m-            {selectedEvent && ([m
+[31m-                <Popup[m
+[31m-                    // Ensure the Popup component's expected prop name matches 'selectedProposal'[m
+[31m-                    // And that the 'selectedEvent' object structure matches Popup's expected interface[m
+[31m-                    selectedProposal={mapCalendarToPopupProposal(selectedEvent)}[m
+[31m-                    closePopup={closePopup}[m
+[31m-                    // Pass a function if Popup needs to trigger a refresh after an update[m
+[31m-                    onProposalUpdated={() => {[m
+[31m-                        console.log("Proposal update action triggered from CalendarView Popup");[m
+[31m-                        // Optionally, trigger a refetch in the parent component here if needed[m
+[31m-                        // For now, just closing the popup.[m
+[31m-                        closePopup();[m
+[31m-                     }}[m
+[31m-                    token={null}[m
+[31m-                    apiBaseUrl=""[m
+[31m-                />[m
+[31m-            )}[m
+[32m+[m[32m{selectedEvent && ([m
+[32m+[m[32m    <Popup[m
+[32m+[m[32m        selectedProposal={mapCalendarToPopupProposal(selectedEvent)}[m
+[32m+[m[32m        closePopup={closePopup}[m
+[32m+[m[32m        onProposalUpdated={() => {[m
+[32m+[m[32m            console.log("Proposal update action triggered from CalendarView Popup");[m
+[32m+[m[32m            closePopup();[m
+[32m+[m[32m         }}[m
+[32m+[m[32m        currentUserRole="convener"[m
+[32m+[m[32m    />[m
+[32m+[m[32m)}[m
+         </div>[m
+     );[m
+ };[m

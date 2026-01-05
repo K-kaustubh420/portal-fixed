@@ -71,60 +71,85 @@ const Overview: React.FC<OverviewProps> = ({ eventProposals, handleProposalClick
                     
                     <table className="table table-compact w-full">
                         <thead>
-                            <tr className="bg-blue-100 text-blue-900 text-xs uppercase tracking-wider"> 
-                                <th className="p-3">Title</th>
-                                <th className="p-3">Start Date</th>
-                                <th className="p-3">End Date</th>
-                                <th className="p-3">Description</th>
-                                <th className="p-3 text-center">Status</th> 
-                                <th className="p-3">Awaiting</th>
-                                <th className="p-3">Event status</th> {/* Added Event column */}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {eventProposals.length > 0 ? (
-                                eventProposals.map((proposal) => (
-                                    <tr
-                                        onClick={() => handleProposalClick(proposal.originalItem || proposal)}
-                                        key={proposal.id}
-                                        className="cursor-pointer hover:bg-gray-100 text-sm border-b border-gray-200 last:border-b-0" // Added border
-                                    >
-                                        <td className="p-2 font-medium text-gray-800">{proposal.title}</td>
-                                        <td className="p-2 text-gray-600">{formatDate(proposal.start)}</td>
-                                        <td className="p-2 text-gray-600">{formatDate(proposal.end)}</td>
-                                        <td className="p-2 text-gray-600 max-w-xs truncate" title={proposal.description}>
-                                            {proposal.description || '-'} {/* Show dash if empty */}
-                                        </td>
-                                       
-                                        <td className="p-2 text-center">
-                                            <span className={`font-medium px-2.5 py-0.5 rounded-full text-xs ${getStatusClass(proposal.status)}`}>
-                                                {formatRole(proposal.status)} {/* Use formatRole for consistency */}
-                                            </span>
-                                        </td>
-                                        <td className="p-2 text-gray-600 font-medium">{formatRole(proposal.awaiting)}</td>
-                                        <td className="p-2 cursor-pointer">
-  <span
-    className={`px-2 py-1 rounded-full text-sm font-medium ${
-      proposal.event === 'rescheduled'
-        ? 'bg-yellow-100 text-yellow-800'
-        : proposal.event === 'cancelled'
-        ? 'bg-red-100 text-red-800'
-        : 'bg-gray-100 text-gray-600'
-    }`}
-  >
-    {proposal.event}
-  </span>
-</td>
+  <tr className="bg-blue-100 text-blue-900 text-xs uppercase tracking-wider">
+    <th className="p-3">Title</th>
+    <th className="p-3">Start Date</th>
+    <th className="p-3">End Date</th>
+    <th className="p-3">Description</th>
+    <th className="p-3 text-center">Status</th>
+    <th className="p-3">Awaiting</th>
+    <th className="p-3">Event status</th>
+  </tr>
+</thead>
 
-                                    </tr>
-                                ))
-                            ) : (
-                                <tr>
-                                   
-                                    <td colSpan={6} className="text-center italic py-4 text-gray-500">No proposals submitted yet.</td>
-                                </tr>
-                            )}
-                        </tbody>
+                       <tbody>
+  {eventProposals.length > 0 ? (
+    eventProposals.map((proposal) => (
+      <tr
+        key={proposal.id}
+        onClick={() => handleProposalClick(proposal.originalItem || proposal)}
+        className="cursor-pointer hover:bg-gray-100 text-sm border-b border-gray-200 last:border-b-0"
+      >
+        <td className="p-2 font-medium text-gray-800">
+          {proposal.title}
+        </td>
+
+        <td className="p-2 text-gray-600">
+          {formatDate(proposal.start)}
+        </td>
+
+        <td className="p-2 text-gray-600">
+          {formatDate(proposal.end)}
+        </td>
+
+        <td
+          className="p-2 text-gray-600 max-w-xs truncate"
+          title={proposal.description || "-"}
+        >
+          {proposal.description ? proposal.description : "-"}
+        </td>
+
+        <td className="p-2 text-center">
+          <span
+            className={`font-medium px-2.5 py-0.5 rounded-full text-xs ${getStatusClass(
+              proposal.status
+            )}`}
+          >
+            {formatRole(proposal.status)}
+          </span>
+        </td>
+
+        <td className="p-2 text-gray-600 font-medium">
+          {formatRole(proposal.awaiting)}
+        </td>
+
+        <td className="p-2 cursor-pointer">
+          <span
+            className={`px-2 py-1 rounded-full text-sm font-medium ${
+              proposal.event === "rescheduled"
+                ? "bg-yellow-100 text-yellow-800"
+                : proposal.event === "cancelled"
+                ? "bg-red-100 text-red-800"
+                : "bg-gray-100 text-gray-600"
+            }`}
+          >
+            {proposal.event}
+          </span>
+        </td>
+      </tr>
+    ))
+  ) : (
+    <tr>
+      <td
+        colSpan={7}
+        className="text-center italic py-4 text-gray-500"
+      >
+        No proposals submitted yet.
+      </td>
+    </tr>
+  )}
+</tbody>
+
                     </table>
                 </div>
             </div>

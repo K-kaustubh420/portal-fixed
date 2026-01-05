@@ -2,15 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format, isValid, differenceInCalendarDays } from 'date-fns';
 import { useRouter } from 'next/navigation';
+import ProposalFileUpload from '@/components/ProposalFileUpload';
 import * as XLSX from 'xlsx';
 import {
   X, User, Users, UserCheck, BedDouble, Car, FileText, Award, DollarSign, Info,
   CalendarDays, AlertCircle, MessageSquare, Edit, Loader2, ThumbsUp, ThumbsDown,
-  MessageCircle, Send, FileDown, UploadCloud, Image as ImageIcon, Trash2, Link as LinkIcon
+  MessageCircle, Send, FileDown, UploadCloud, Image as ImageIcon, Trash2
 } from 'lucide-react';
-
-// Hardcoded Google Drive link constant
-const GOOGLE_DRIVE_LINK = 'https://drive.google.com/drive/folders/180uvZe9CmZyVAxu6oBGXeblO2RxX7Mu2?usp=sharing';
 
 // --- Interfaces ---
 interface BudgetItem {
@@ -101,14 +99,8 @@ interface Proposal {
 interface PopupProps {
   selectedProposal: Proposal | null;
   closePopup: () => void;
-  onAccept?: (proposalId: string) => Promise<void> | void;
-  onReject?: (proposalId: string, reason: string) => Promise<void> | void;
-  onReview?: (proposalId: string, comments: string) => Promise<void> | void;
-  isLoading?: boolean;
-  errorMessage?: string | null;
-  isDetailLoading?: boolean;
   onProposalUpdated?: () => void;
-  currentUserRole?: 'faculty' | 'hod' | 'dean' | 'chair' | 'vice_chair' | string;
+  currentUserRole?: 'faculty' | 'hod' | 'dean' | 'chair' | 'vice_chair' | 'convener' | string;
 }
 
 // --- Helper Components ---
@@ -149,35 +141,61 @@ const PdfOptionsModal: React.FC<{
   isOpen: boolean;
   onClose: () => void;
   onGenerate: (
-    photos: string[],
-    proofs: boolean,
-    attendance: boolean,
-    brochure: boolean
+    photos: File[],
+    proofs: File[],
+    attendance: File[],
+    brochure: File[]
   ) => void;
-}> = ({ isOpen, onClose, onGenerate }) => {
-  const [photos, setPhotos] = useState<string[]>([]);
+  proposalId: string;
+  userToken: string | null;
+}> = ({ isOpen, onClose, onGenerate, proposalId, userToken }) => {
+  const [photos, setPhotos] = useState<File[]>([]);
+  const [proofs, setProofs] = useState<File[]>([]);
+  const [attendance, setAttendance] = useState<File[]>([]);
+  const [brochure, setBrochure] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
-  const [proofsAttached, setProofsAttached] = useState(false);
-  const [attendanceAndMembers, setAttendanceAndMembers] = useState(false);
-  const [brochureAttached, setBrochureAttached] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
 
-  const handleFileChange = (files: FileList | null) => {
+  const photosInputRef = useRef<HTMLInputElement>(null);
+  const proofsInputRef = useRef<HTMLInputElement>(null);
+  const attendanceInputRef = useRef<HTMLInputElement>(null);
+  const brochureInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (files: FileList | null, category: 'photos' | 'proofs' | 'attendance' | 'brochure') => {
     if (!files) return;
     const fileArray = Array.from(files);
-    fileArray.forEach(file => {
-      if (file.type.startsWith('image/')) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          setPhotos(prev => [...prev, e.target?.result as string]);
-        };
-        reader.readAsDataURL(file);
-      }
-    });
+    
+    switch(category) {
+      case 'photos':
+        setPhotos(prev => [...prev, ...fileArray]);
+        break;
+      case 'proofs':
+        setProofs(prev => [...prev, ...fileArray]);
+        break;
+      case 'attendance':
+        setAttendance(prev => [...prev, ...fileArray]);
+        break;
+      case 'brochure':
+        setBrochure(prev => [...prev, ...fileArray]);
+        break;
+    }
   };
 
-  const removePhoto = (index: number) => {
-    setPhotos(prev => prev.filter((_, i) => i !== index));
+  const removeFile = (category: 'photos' | 'proofs' | 'attendance' | 'brochure', index: number) => {
+    switch(category) {
+      case 'photos':
+        setPhotos(prev => prev.filter((_, i) => i !== index));
+        break;
+      case 'proofs':
+        setProofs(prev => prev.filter((_, i) => i !== index));
+        break;
+      case 'attendance':
+        setAttendance(prev => prev.filter((_, i) => i !== index));
+        break;
+      case 'brochure':
+        setBrochure(prev => prev.filter((_, i) => i !== index));
+        break;
+    }
   };
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -193,19 +211,149 @@ const PdfOptionsModal: React.FC<{
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragging(false);
-    handleFileChange(e.dataTransfer.files);
+    handleFileChange(e.dataTransfer.files, 'photos');
+  };
+
+  const uploadFilesToServer = async () => {
+    setUploading(true);
+    
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost/events/public';
+
+    if (!userToken) {
+      alert('You are not authenticated. Please login again.');
+      setUploading(false);
+      return;
+    }
+
+    try {
+      const uploadFile = async (file: File, category: string) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('category', category);
+        
+        console.log(`📤 Uploading ${file.name} to category: ${category}`);
+        
+        // ✅ FIXED: Use /api/faculty endpoint (works for conveners via middleware)
+        const uploadUrl = `${API_BASE_URL}/api/faculty/proposals/${proposalId}/files`;
+        console.log('Upload URL:', uploadUrl);
+        
+        const response = await fetch(uploadUrl, {
+          method: 'POST',
+          body: formData,
+          headers: {
+            'Authorization': `Bearer ${userToken}`,
+            'Accept': 'application/json',
+          },
+        });
+
+        console.log(`Response for ${file.name}:`, response.status);
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ 
+            message: `Upload failed with status ${response.status}` 
+          }));
+          throw new Error(errorData.message || `Failed to upload ${file.name}`);
+        }
+
+        return await response.json();
+      };
+
+      const uploadPromises = [
+        ...photos.map(file => uploadFile(file, 'photos')),
+        ...proofs.map(file => uploadFile(file, 'proofs')),
+        ...attendance.map(file => uploadFile(file, 'attendance')),
+        ...brochure.map(file => uploadFile(file, 'brochure')),
+      ];
+
+      await Promise.all(uploadPromises);
+      
+      console.log('✅ All files uploaded successfully!');
+      
+      onGenerate(photos, proofs, attendance, brochure);
+      onClose();
+    } catch (error) {
+      console.error('❌ Upload failed:', error);
+      alert(`Failed to upload files: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`);
+    } finally {
+      setUploading(false);
+    }
   };
 
   useEffect(() => {
     if (!isOpen) {
       setPhotos([]);
-      setProofsAttached(false);
-      setAttendanceAndMembers(false);
-      setBrochureAttached(false);
+      setProofs([]);
+      setAttendance([]);
+      setBrochure([]);
     }
   }, [isOpen]);
 
   if (!isOpen) return null;
+
+  const FileUploadSection = ({ 
+    title, 
+    files, 
+    category, 
+    inputRef 
+  }: { 
+    title: string; 
+    files: File[]; 
+    category: 'photos' | 'proofs' | 'attendance' | 'brochure';
+    inputRef: React.RefObject<HTMLInputElement | null>;
+  }) => (
+    <div className="mb-4">
+      <h4 className="text-sm font-semibold text-gray-700 mb-2">{title}</h4>
+      <div className="border-2 border-dashed rounded-lg p-4 text-center bg-gradient-to-br from-gray-50 to-gray-100 hover:from-indigo-50 hover:to-blue-50 transition-colors">
+        <button 
+          onClick={() => inputRef.current?.click()} 
+          className="btn btn-sm btn-outline btn-primary"
+          type="button"
+          disabled={uploading}
+        >
+          <UploadCloud size={16} className="mr-1" />
+          Choose Files
+        </button>
+        <input
+          type="file"
+          ref={inputRef}
+          multiple
+          accept="image/*,.pdf,.doc,.docx"
+          className="hidden"
+          onChange={(e) => handleFileChange(e.target.files, category)}
+          disabled={uploading}
+        />
+        <p className="text-xs text-gray-500 mt-2">Images or PDFs (Max 10MB each)</p>
+      </div>
+      
+      {files.length > 0 && (
+        <div className="mt-3 space-y-2">
+          <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+            {files.length} file{files.length !== 1 ? 's' : ''} selected
+          </p>
+          {files.map((file, index) => (
+            <div key={index} className="flex items-center justify-between bg-white p-2 rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <FileText size={14} className="text-indigo-600 flex-shrink-0" />
+                <span className="truncate text-sm text-gray-700">{file.name}</span>
+                <span className="text-xs text-gray-400 flex-shrink-0">
+                  ({(file.size / 1024).toFixed(1)} KB)
+                </span>
+              </div>
+              <button
+                onClick={() => removeFile(category, index)}
+                className="text-red-600 hover:text-red-800 hover:bg-red-50 p-1 rounded ml-2 transition-colors"
+                type="button"
+                disabled={uploading}
+                title="Remove file"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center backdrop-blur-sm bg-black bg-opacity-40 p-4">
@@ -213,111 +361,110 @@ const PdfOptionsModal: React.FC<{
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
-        className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col"
+        className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col"
       >
-        <div className="flex justify-between items-center p-4 border-b">
-          <h3 className="text-lg font-semibold text-gray-800">PDF Report Options</h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-red-600"><X size={24} /></button>
+        <div className="flex justify-between items-center p-5 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-blue-50">
+          <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+            <UploadCloud className="text-indigo-600" size={20} />
+            Upload Documents & Generate Report
+          </h3>
+          <button 
+            onClick={onClose} 
+            className="text-gray-500 hover:text-red-600 hover:bg-red-50 p-1 rounded transition-colors" 
+            disabled={uploading}
+            title="Close"
+          >
+            <X size={24} />
+          </button>
         </div>
         
-        <div className="p-6 flex-grow overflow-y-auto space-y-6">
-          {/* Google Drive Link - Clickable Display */}
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              Google Drive Link (All documents will be uploaded here)
-            </label>
-            <div className="relative">
-              <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-blue-600" />
-              <a 
-                href={GOOGLE_DRIVE_LINK} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="flex items-center bg-blue-50 border border-blue-200 rounded-lg py-3 px-10 text-sm text-blue-700 hover:bg-blue-100 hover:border-blue-300 transition-colors w-full overflow-hidden"
-              >
-                <span className="truncate">{GOOGLE_DRIVE_LINK}</span>
-              </a>
-            </div>
-            <p className="text-xs text-gray-500 mt-1">Click the link above to open the shared Google Drive folder</p>
-          </div>
-
-          {/* Only 3 Original Checkboxes */}
-          <div>
-            <h4 className="text-sm font-medium text-gray-700 mb-2">Attached Documents Checklist</h4>
-            <div className="space-y-2 rounded-md border p-3 bg-gray-50">
-              <label className="flex items-center cursor-pointer">
-                <input 
-                  type="checkbox" 
-                  id="proofs" 
-                  checked={proofsAttached} 
-                  onChange={(e) => setProofsAttached(e.target.checked)} 
-                  className="checkbox checkbox-sm checkbox-primary" 
-                />
-                <span className="ml-2 text-sm text-gray-700">Proofs Attached</span>
-              </label>
-              <label className="flex items-center cursor-pointer">
-                <input 
-                  type="checkbox" 
-                  id="attendance" 
-                  checked={attendanceAndMembers} 
-                  onChange={(e) => setAttendanceAndMembers(e.target.checked)} 
-                  className="checkbox checkbox-sm checkbox-primary" 
-                />
-                <span className="ml-2 text-sm text-gray-700">Attendance and Members Details</span>
-              </label>
-              <label className="flex items-center cursor-pointer">
-                <input 
-                  type="checkbox" 
-                  id="brochure" 
-                  checked={brochureAttached} 
-                  onChange={(e) => setBrochureAttached(e.target.checked)} 
-                  className="checkbox checkbox-sm checkbox-primary" 
-                />
-                <span className="ml-2 text-sm text-gray-700">Brochure</span>
-              </label>
-            </div>
-          </div>
+        <div className="p-6 flex-grow overflow-y-auto space-y-4 custom-scrollbar">
+          <FileUploadSection 
+            title="📄 Proofs Attached" 
+            files={proofs} 
+            category="proofs" 
+            inputRef={proofsInputRef}
+          />
           
-          {/* Photo Upload */}
+          <FileUploadSection 
+            title="📋 Attendance and Members Details" 
+            files={attendance} 
+            category="attendance" 
+            inputRef={attendanceInputRef}
+          />
+          
+          <FileUploadSection 
+            title="📑 Event Brochure" 
+            files={brochure} 
+            category="brochure" 
+            inputRef={brochureInputRef}
+          />
+          
+          {/* Photo Upload with Drag & Drop */}
           <div>
-            <h4 className="text-sm font-medium text-gray-700 mb-2">Attach Photos (Optional)</h4>
+            <h4 className="text-sm font-semibold text-gray-700 mb-2">📷 Event Photos (Optional)</h4>
             <div
-              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${isDragging ? 'border-indigo-500 bg-indigo-50' : 'border-gray-300 bg-gray-50'}`}
+              className={`border-2 border-dashed rounded-lg p-8 text-center transition-all ${
+                isDragging 
+                  ? 'border-indigo-500 bg-indigo-50 scale-105' 
+                  : 'border-gray-300 bg-gradient-to-br from-gray-50 to-gray-100 hover:border-indigo-400'
+              }`}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
             >
               <UploadCloud className="mx-auto h-12 w-12 text-gray-400" />
-              <p className="mt-2 text-sm text-gray-600">Drag & drop images here</p>
-              <p className="text-xs text-gray-500">or</p>
-              <button onClick={() => fileInputRef.current?.click()} className="btn btn-sm btn-outline mt-2">
+              <p className="mt-2 text-sm font-medium text-gray-600">Drag & drop images here</p>
+              <p className="text-xs text-gray-500 mt-1">or</p>
+              <button 
+                onClick={() => photosInputRef.current?.click()} 
+                className="btn btn-sm btn-outline btn-primary mt-3" 
+                type="button" 
+                disabled={uploading}
+              >
+                <ImageIcon size={14} className="mr-1" />
                 Browse Files
               </button>
               <input
                 type="file"
-                ref={fileInputRef}
+                ref={photosInputRef}
                 multiple
                 accept="image/*"
                 className="hidden"
-                onChange={(e) => handleFileChange(e.target.files)}
+                onChange={(e) => handleFileChange(e.target.files, 'photos')}
+                disabled={uploading}
               />
+              <p className="text-xs text-gray-400 mt-2">PNG, JPG, JPEG (Max 10MB each)</p>
             </div>
           </div>
 
           {/* Photo Previews */}
           {photos.length > 0 && (
-            <div>
-              <h4 className="font-semibold text-sm mb-2">Image Previews:</h4>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+            <div className="mt-4">
+              <h4 className="font-semibold text-sm mb-3 text-gray-700 flex items-center gap-2">
+                <ImageIcon size={16} className="text-indigo-600" />
+                Photo Previews ({photos.length}):
+              </h4>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                 {photos.map((photo, index) => (
-                  <div key={index} className="relative group border rounded-md overflow-hidden">
-                    <img src={photo} alt={`preview ${index}`} className="h-28 w-full object-cover" />
+                  <div key={index} className="relative group border-2 border-gray-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                    <img 
+                      src={URL.createObjectURL(photo)} 
+                      alt={`preview ${index}`} 
+                      className="h-28 w-full object-cover" 
+                    />
                     <button
-                      onClick={() => removePhoto(index)}
-                      className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                      aria-label="Remove image"
+                      onClick={() => removeFile('photos', index)}
+                      className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg hover:bg-red-700"
+                      type="button"
+                      disabled={uploading}
+                      title="Remove photo"
                     >
-                      <Trash2 size={14} />
+                      <Trash2 size={12} />
                     </button>
+                    <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-1 truncate opacity-0 group-hover:opacity-100 transition-opacity">
+                      {photo.name}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -326,14 +473,36 @@ const PdfOptionsModal: React.FC<{
         </div>
 
         {/* Footer */}
-        <div className="p-4 bg-gray-50 border-t flex justify-end gap-3">
-          <button onClick={onClose} className="btn btn-ghost">Cancel</button>
-          <button 
-            onClick={() => onGenerate(photos, proofsAttached, attendanceAndMembers, brochureAttached)} 
-            className="btn btn-primary"
-          >
-            Generate PDF
-          </button>
+        <div className="p-4 bg-gray-50 border-t flex justify-between items-center">
+          <div className="text-sm text-gray-600">
+            {photos.length + proofs.length + attendance.length + brochure.length > 0 && (
+              <span className="font-semibold text-indigo-600">
+                {photos.length + proofs.length + attendance.length + brochure.length} file(s) ready
+              </span>
+            )}
+          </div>
+          <div className="flex gap-3">
+            <button onClick={onClose} className="btn btn-ghost btn-sm" disabled={uploading}>
+              Cancel
+            </button>
+            <button 
+              onClick={uploadFilesToServer} 
+              className="btn btn-primary btn-sm"
+              disabled={uploading || (photos.length === 0 && proofs.length === 0 && attendance.length === 0 && brochure.length === 0)}
+            >
+              {uploading ? (
+                <>
+                  <Loader2 className="animate-spin mr-2" size={16} />
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <FileDown className="mr-2" size={16} />
+                  Upload & Generate PDF
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </motion.div>
     </div>
@@ -344,31 +513,15 @@ const PdfOptionsModal: React.FC<{
 const Popup: React.FC<PopupProps> = ({
   selectedProposal,
   closePopup,
-  onAccept,
-  onReject,
-  onReview,
-  isLoading = false,
-  errorMessage = null,
-  isDetailLoading = false,
   onProposalUpdated,
   currentUserRole
 }) => {
-  const [rejectionInput, setRejectionInput] = useState('');
-  const [reviewInput, setReviewInput] = useState('');
-  const [isRejecting, setIsRejecting] = useState(false);
-  const [isReviewing, setIsReviewing] = useState(false);
-  const [localErrorMessage, setLocalErrorMessage] = useState<string | null>(null);
   const [isClient, setIsClient] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isPdfOptionsModalOpen, setIsPdfOptionsModalOpen] = useState(false);
 
-  useEffect(() => {
-    setIsRejecting(false);
-    setIsReviewing(false);
-    setRejectionInput('');
-    setReviewInput('');
-    setLocalErrorMessage(null);
-  }, [selectedProposal]);
+  // ✅ Get token from localStorage (consistent with ProposalFileUpload)
+  const token = localStorage.getItem('authToken');
 
   useEffect(() => {
     setIsClient(true);
@@ -408,47 +561,45 @@ const Popup: React.FC<PopupProps> = ({
     if (!role) return 'N/A';
     return role.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
-  
-  const canHodAct = currentUserRole === 'hod' &&
-    ['pending', 'review'].includes(selectedProposal?.status || '') &&
-    (!selectedProposal?.awaiting || selectedProposal.awaiting.toLowerCase() === 'hod');
 
   const eventDuration = calculateDuration();
-
-  const handleRejectClick = () => { setIsRejecting(true); setIsReviewing(false); setLocalErrorMessage(null); };
-  const handleReviewClick = () => { setIsReviewing(true); setIsRejecting(false); setLocalErrorMessage(null); };
-  const cancelAction = () => { setIsRejecting(false); setIsReviewing(false); setRejectionInput(''); setReviewInput(''); setLocalErrorMessage(null); };
-  const executeAccept = async () => { if (onAccept && selectedProposal) { setLocalErrorMessage(null); await onAccept(selectedProposal.id); } };
-  const executeReject = async () => { if (!rejectionInput.trim()) { setLocalErrorMessage("Rejection reason cannot be empty."); return; } if (onReject && selectedProposal) { setLocalErrorMessage(null); await onReject(selectedProposal.id, rejectionInput); } };
-  const executeReview = async () => { if (!reviewInput.trim()) { setLocalErrorMessage("Review comments cannot be empty."); return; } if (onReview && selectedProposal) { setLocalErrorMessage(null); await onReview(selectedProposal.id, reviewInput); } };
 
   const handleDownloadPdf = () => {
     if (!selectedProposal) return;
     setIsPdfOptionsModalOpen(true);
   };
 
-  const generatePdfWithOptions = (
-    photos: string[] = [],
-    proofsAttached: boolean = false,
-    attendanceAndMembers: boolean = false,
-    brochureAttached: boolean = false
+  const generatePdfWithOptions = async (
+    photos: File[],
+    proofs: File[],
+    attendance: File[],
+    brochure: File[]
   ) => {
     if (!selectedProposal) return;
     setIsDownloading(true);
     setIsPdfOptionsModalOpen(false);
 
-    const photosHtml = photos.length > 0
-      ? `<h2>Photographs</h2><div style="margin-top: 15px;">${photos.map(src => `<img src="${src}" style="width: 100%; max-width: 700px; height: auto; margin-bottom: 15px; page-break-inside: avoid;" />`).join('')}</div>`
-      : '<p><strong>17. Photographs:</strong> No photographs were attached.</p>';
+    // Convert File objects to base64 for images
+    const photosBase64: string[] = [];
+    for (const photo of photos) {
+      const base64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target?.result as string);
+        reader.readAsDataURL(photo);
+      });
+      photosBase64.push(base64);
+    }
 
-    const gdriveLinkHtml = `<div class="section"><h2>Supporting Documents</h2><p><strong>Google Drive Link:</strong> <a href="${GOOGLE_DRIVE_LINK}" target="_blank" rel="noopener noreferrer">${GOOGLE_DRIVE_LINK}</a></p></div>`;
+    const photosHtml = photosBase64.length > 0
+      ? `<h2>Photographs</h2><div style="margin-top: 15px;">${photosBase64.map(src => `<img src="${src}" style="width: 100%; max-width: 700px; height: auto; margin-bottom: 15px; page-break-inside: avoid;" />`).join('')}</div>`
+      : '<p><strong>17. Photographs:</strong> No photographs were attached.</p>';
       
     const attachmentsChecklistHtml = `
   <div class="section">
     <h2>Attachments Checklist</h2>
-    <p><strong>- Proofs Attached:</strong> ${proofsAttached ? 'Yes' : 'No'}</p>
-    <p><strong>- Attendance and Members Details:</strong> ${attendanceAndMembers ? 'Yes' : 'No'}</p>
-    <p><strong>- Brochure:</strong> ${brochureAttached ? 'Yes' : 'No'}</p>
+    <p><strong>- Proofs Attached:</strong> ${proofs.length > 0 ? 'Yes (' + proofs.length + ' file(s))' : 'No'}</p>
+    <p><strong>- Attendance and Members Details:</strong> ${attendance.length > 0 ? 'Yes (' + attendance.length + ' file(s))' : 'No'}</p>
+    <p><strong>- Brochure:</strong> ${brochure.length > 0 ? 'Yes (' + brochure.length + ' file(s))' : 'No'}</p>
   </div>
 `;
 
@@ -463,9 +614,10 @@ const Popup: React.FC<PopupProps> = ({
             h3 { font-size: 14px; margin-top: 20px; }
             p { margin: 5px 0; }
             strong { font-weight: bold; }
-            a { color: #0000EE; text-decoration: underline; }
-            .content { max-width: 800px; margin: auto; } .section { margin-bottom: 15px; page-break-inside: avoid; }
-            .financial-item { padding-left: 20px; } .signature { margin-top: 40px; }
+            .content { max-width: 800px; margin: auto; }
+            .section { margin-bottom: 15px; page-break-inside: avoid; }
+            .financial-item { padding-left: 20px; }
+            .signature { margin-top: 40px; }
           </style>
         </head>
         <body>
@@ -477,14 +629,16 @@ const Popup: React.FC<PopupProps> = ({
               <p><strong>2. Conducting Department:</strong> ${selectedProposal.organizer}</p>
               <p><strong>3. Date and Duration:</strong> ${formatDateSafe(selectedProposal.eventStartDate, 'dd-MM-yyyy')} to ${formatDateSafe(selectedProposal.eventEndDate, 'dd-MM-yyyy')} (${eventDuration})</p>
               <p><strong>4. Type of event:</strong> ${formatRole(selectedProposal.category)}</p>
-              <p><strong>5. Mode of Conduction:</strong> N/A</p><p><strong>6. Association:</strong> N/A</p>
+              <p><strong>5. Mode of Conduction:</strong> N/A</p>
+              <p><strong>6. Association:</strong> N/A</p>
               <p><strong>7. Total Registered Participants:</strong> ${selectedProposal.participantExpected ?? 'N/A'}</p>
               <p><strong>8. Internal/External participants:</strong> Internal- N/A, External- N/A</p>
               <p><strong>9. Male/Female participants:</strong> Male- N/A, Female- N/A</p>
               <p><strong>10. Participant Categories:</strong> ${selectedProposal.participantCategories?.join(', ') || 'N/A'}</p>
               <p><strong>11. About the Workshop (Theme/Objective):</strong> ${selectedProposal.description || 'N/A'}</p>
               <p><strong>12. Targeted Audience:</strong> ${selectedProposal.participantCategories?.join(', ') || 'N/A'}</p>
-              <p><strong>13. Number of Technical Sessions:</strong> N/A</p><p><strong>14. Session Details:</strong> N/A</p>
+              <p><strong>13. Number of Technical Sessions:</strong> N/A</p>
+              <p><strong>14. Session Details:</strong> N/A</p>
               <p><strong>15. Event Outcome:</strong> ${selectedProposal.relevantDetails || 'N/A'}</p>
               <p><strong>16. Feedback Collected:</strong> N/A</p>
             </div>
@@ -497,7 +651,6 @@ const Popup: React.FC<PopupProps> = ({
               <p class="financial-item"><strong>Amount returned to University:</strong> N/A</p>
             </div>
             ${attachmentsChecklistHtml}
-            ${gdriveLinkHtml}
             <div class="section">
               ${photosHtml}
             </div>
@@ -506,14 +659,21 @@ const Popup: React.FC<PopupProps> = ({
             <p class="signature"><strong>21. Signature of HOD:</strong></p>
           </div>
         </body>
-      </html>`;
+      </html>
+    `;
+
     const printWindow = window.open('', '_blank');
     if (printWindow) {
       printWindow.document.write(reportHtml);
       printWindow.document.close();
-      setTimeout(() => { printWindow.focus(); printWindow.print(); printWindow.close(); setIsDownloading(false); }, 250);
+      setTimeout(() => {
+        printWindow.focus();
+        printWindow.print();
+        printWindow.close();
+        setIsDownloading(false);
+      }, 250);
     } else {
-      setLocalErrorMessage("Could not open a new window. Please disable your pop-up blocker.");
+      alert("Could not open a new window. Please disable your pop-up blocker.");
       setIsDownloading(false);
     }
   };
@@ -598,15 +758,6 @@ const Popup: React.FC<PopupProps> = ({
     setIsDownloading(false);
   };
 
-  if (isDetailLoading) {
-    return (
-      <motion.div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-md bg-opacity-60 p-4"
-        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
-        <PopupSkeleton />
-      </motion.div>
-    );
-  }
-
   if (!selectedProposal) return null;
 
   return (
@@ -615,6 +766,8 @@ const Popup: React.FC<PopupProps> = ({
         isOpen={isPdfOptionsModalOpen}
         onClose={() => setIsPdfOptionsModalOpen(false)}
         onGenerate={generatePdfWithOptions}
+        proposalId={selectedProposal.id}
+        userToken={token}
       />
       <motion.div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-md bg-opacity-50 p-4"
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
@@ -629,7 +782,7 @@ const Popup: React.FC<PopupProps> = ({
           </div>
 
           <div className="p-5 md:p-6 space-y-6 overflow-y-auto flex-grow custom-scrollbar">
-              <section className="border border-gray-200 rounded-lg p-4 bg-gray-50/80">
+            <section className="border border-gray-200 rounded-lg p-4 bg-gray-50/80">
               <h3 className="text-lg font-semibold text-indigo-800 mb-3 flex items-center gap-2"><Info size={18} /> Event Information</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-3">
                 <DetailItem label="Proposal ID" value={selectedProposal.id} />
@@ -718,13 +871,7 @@ const Popup: React.FC<PopupProps> = ({
                   {isClient && (
                     <div className="overflow-x-auto max-h-60 border rounded-md">
                       <table className={`table table-sm w-full text-xs ${isClient ? 'sticky-table' : ''}`}>
-                        <thead className="bg-gray-100 z-10">
-                          <tr className='text-blue-500'>
-                            <th className="p-2">Category</th><th className="p-2">Subcategory</th><th className="p-2">Type</th>
-                            <th className="p-2 text-center">Status</th><th className="p-2 text-right">Qty</th>
-                            <th className="p-2 text-right">Cost/Unit</th><th className="p-2 text-right">Total</th>
-                          </tr>
-                        </thead>
+                        <thead className="bg-gray-100 z-10"><tr className='text-blue-500'><th className="p-2">Category</th><th className="p-2">Subcategory</th><th className="p-2">Type</th><th className="p-2 text-center">Status</th><th className="p-2 text-right">Qty</th><th className="p-2 text-right">Cost/Unit</th><th className="p-2 text-right">Total</th></tr></thead>
                         <tbody>
                           {selectedProposal.detailedBudget.map((item, index) => (
                             <tr key={item.id || index} className="hover:bg-gray-50 border-b last:border-b-0 border-gray-200">
@@ -736,11 +883,7 @@ const Popup: React.FC<PopupProps> = ({
                             </tr>
                           ))}
                         </tbody>
-                        <tfoot className="bg-gray-100">
-                          <tr>
-                            <td colSpan={6} className="p-2 text-right">Total:</td><td className="p-2 text-right">{formatCurrency(selectedProposal.estimatedBudget)}</td>
-                          </tr>
-                        </tfoot>
+                        <tfoot className="bg-gray-100"><tr><td colSpan={6} className="p-2 text-right">Total:</td><td className="p-2 text-right">{formatCurrency(selectedProposal.estimatedBudget)}</td></tr></tfoot>
                       </table>
                     </div>
                   )}
@@ -752,12 +895,7 @@ const Popup: React.FC<PopupProps> = ({
                   {isClient && (
                     <div className="overflow-x-auto max-h-60 border rounded-md">
                       <table className={`table table-sm w-full text-xs ${isClient ? 'sticky-table' : ''}`}>
-                        <thead className="bg-gray-100 z-10">
-                          <tr className='text-blue-500'>
-                            <th className="p-2">Sponsor/Category</th><th className="p-2">Mode</th><th className="p-2 text-right">Amount</th>
-                            <th className="p-2">Reward</th><th className="p-2">Benefit</th><th className="p-2">About</th>
-                          </tr>
-                        </thead>
+                        <thead className="bg-gray-100 z-10"><tr className='text-blue-500'><th className="p-2">Sponsor/Category</th><th className="p-2">Mode</th><th className="p-2 text-right">Amount</th><th className="p-2">Reward</th><th className="p-2">Benefit</th><th className="p-2">About</th></tr></thead>
                         <tbody>
                           {selectedProposal.sponsorshipDetailsRows.map((sponsor, index) => (
                             <tr key={sponsor.id || index} className="hover:bg-gray-50 border-b last:border-b-0 border-gray-200">
@@ -789,12 +927,16 @@ const Popup: React.FC<PopupProps> = ({
                 </div>
               </section>
             )}
+
+            {/* File Upload Section - For convener */}
+            {selectedProposal && currentUserRole === 'convener' && (
+              <section className="border border-gray-200 rounded-lg p-4 bg-gray-50/80">
+                <ProposalFileUpload proposalId={Number(selectedProposal.id)} />
+              </section>
+            )}
           </div>
 
           <div className="p-4 border-t border-gray-200 bg-gray-50 rounded-b-lg sticky bottom-0 z-10">
-            {errorMessage && <div className="alert alert-error shadow-lg text-xs p-2 mb-3"><div><AlertCircle size={16} /> <span>Action Error: {errorMessage}</span></div></div>}
-            {localErrorMessage && <div className="alert alert-warning shadow-lg text-xs p-2 mb-3"><div><AlertCircle size={16} /> <span>{localErrorMessage}</span></div></div>}
-            
             <div className="flex flex-wrap justify-between items-center gap-3">
               <div className="flex flex-wrap gap-2">
                   <button onClick={handleDownloadPdf} className="btn btn-ghost btn-sm text-red-600" disabled={isDownloading}>
@@ -804,47 +946,7 @@ const Popup: React.FC<PopupProps> = ({
                       {isDownloading ? <Loader2 className="animate-spin mr-1" size={16} /> : <FileDown size={16} className="mr-1" />} Excel
                   </button>
               </div>
-
-              {canHodAct && !isRejecting && !isReviewing && (
-                <div className="flex flex-wrap gap-3 justify-end">
-                  <button onClick={executeAccept} className="btn btn-success btn-sm text-white" disabled={isLoading || isDownloading}>
-                    {isLoading && !isDownloading ? <Loader2 className="animate-spin mr-1" size={16} /> : <ThumbsUp size={16} className="mr-1" />} Accept
-                  </button>
-                  <button onClick={handleReviewClick} className="btn btn-warning btn-sm text-white" disabled={isLoading || isDownloading}>
-                    <MessageCircle size={16} className="mr-1" /> Request Review
-                  </button>
-                  <button onClick={handleRejectClick} className="btn btn-error btn-sm text-white" disabled={isLoading || isDownloading}>
-                    <ThumbsDown size={16} className="mr-1" /> Reject
-                  </button>
-                </div>
-              )}
             </div>
-
-            {isRejecting && (
-              <div className="mt-3 space-y-2">
-                <label htmlFor="rejectionMessage" className="block text-sm font-semibold text-gray-700">Reason for Rejection: <span className="text-red-500">*</span></label>
-                <textarea id="rejectionMessage" rows={2} className={`textarea textarea-bordered w-full bg-white text-black ${localErrorMessage?.includes('Rejection') ? 'textarea-error' : ''}`} placeholder="Enter rejection reason..." value={rejectionInput} onChange={(e) => setRejectionInput(e.target.value)} disabled={isLoading} required />
-                <div className="flex gap-3 justify-end mt-2">
-                  <button onClick={cancelAction} className="btn btn-ghost btn-sm" disabled={isLoading}>Cancel</button>
-                  <button onClick={executeReject} className="btn btn-error btn-sm text-white" disabled={isLoading || !rejectionInput.trim()}>
-                    {isLoading ? <Loader2 className="animate-spin mr-1" size={16} /> : <ThumbsDown size={16} className="mr-1" />} Confirm Reject
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {isReviewing && (
-              <div className="mt-3 space-y-2">
-                <label htmlFor="reviewMessage" className="block text-sm font-semibold text-gray-700">Comments for Review: <span className="text-red-500">*</span></label>
-                <textarea id="reviewMessage" rows={2} className={`textarea textarea-bordered w-full bg-white text-black ${localErrorMessage?.includes('Review') ? 'textarea-error' : ''}`} placeholder="Enter comments or questions..." value={reviewInput} onChange={(e) => setReviewInput(e.target.value)} disabled={isLoading} required />
-                <div className="flex gap-3 justify-end mt-2">
-                  <button onClick={cancelAction} className="btn btn-ghost btn-sm" disabled={isLoading}>Cancel</button>
-                  <button onClick={executeReview} className="btn btn-warning btn-sm text-white" disabled={isLoading || !reviewInput.trim()}>
-                    {isLoading ? <Loader2 className="animate-spin mr-1" size={16} /> : <Send size={16} className="mr-1" />} Submit Review
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
         </motion.div>
       </motion.div>
@@ -855,6 +957,10 @@ const Popup: React.FC<PopupProps> = ({
 const styles = `
   .sticky-table thead { position: sticky; top: 0; background: #f7fafc; z-index: 10; }
   .sticky-table tfoot { position: sticky; bottom: 0; background: #f7fafc; }
+  .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+  .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { background: #888; border-radius: 4px; }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #555; }
 `;
 
 if (typeof window !== 'undefined') {

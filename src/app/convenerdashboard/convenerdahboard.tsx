@@ -398,22 +398,21 @@ const ConvenerDashboard: React.FC = () => {
                 {/* Right Column: Overview Table */}
                 <div className="lg:col-span-2 space-y-6">
                     <Overview
-                        eventProposals={validProposals.map(p => ({
-                            id: String(p.id),
-                            title: p.title || 'N/A',
-                            start: p.start,
-                            end: p.end,
-                            description: p.description?.substring(0, 100) + (p.description && p.description.length > 100 ? '...' : '') || '-',
-                            awaiting: p.awaiting,
-                            originalItem: p,
-                            status: p.status,
-                            payment:p.payment,
-                            event:p.event
-
-                        }))}
-                        handleProposalClick={handleListItemClick} // Opens detail popup
-                        onRequestTransportClick={openTransportPopup} // <-- Pass handler to Overview
-                    />
+                         eventProposals={validProposals.map(p => ({
+                             id: String(p.id),
+                             title: p.title || 'N/A',
+                             start: p.start,
+                             end: p.end,
+                             description:
+                                p.description?.substring(0, 100) +
+                                    (p.description && p.description.length > 100 ? '...' : '') || '-',
+                             originalItem: p,
+                             status: p.status,
+                             event: p.event,
+                         }))}
+                         handleProposalClick={handleListItemClick}
+                         />
+                    
                 </div>
             </div>
 
